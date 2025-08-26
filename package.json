@@ -1,0 +1,62 @@
+{
+  "name": "mermaid-render-anywhere",
+  "displayName": "Mermaid Render Anywhere",
+  "description": "在Python函数文档中渲染Mermaid工作流预览",
+  "version": "0.0.1",
+  "icon": "icon.jpg",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:python"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "mermaid-render-anywhere.extractAllMermaidPopup",
+        "title": "提取所有Mermaid图表",
+        "category": "Mermaid"
+      },
+      {
+        "command": "mermaid-render-anywhere.helloWorld",
+        "title": "Hello World"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "mermaid-render-anywhere.extractAllMermaidPopup",
+          "when": "true",
+          "group": "navigation"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "mermaid-render-anywhere.extractAllMermaidPopup",
+        "key": "cmd+r",
+        "when": "true"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./ && cp src/mermaid-preview.html out/ && cp src/webview-script.js out/ && cp src/webview-styles.css out/ && cp -r src/libs out/",
+    "watch": "tsc -watch -p ./ && cp src/mermaid-preview.html out/ && cp src/webview-script.js out/ && cp src/webview-styles.css out/ && cp -r src/libs out/"
+  },
+  "devDependencies": {
+    "@types/node": "16.x",
+    "@types/vscode": "^1.74.0",
+    "typescript": "^4.9.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jianduo1/mermaid-render-anywhere.git"
+  },
+  "publisher": "jack-duo",
+  "license": "MIT"
+}
