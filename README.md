@@ -3,9 +3,24 @@
 [![Version](https://img.shields.io/badge/version-0.0.1-blue.svg)](https://github.com/jianduo1/mermaid-render-anywhere)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
+## 🤖 AI辅助的效率神器
+
+> **💡 Vibe Coding 最佳实践**  
+> 使用AI分析函数功能，自动生成Mermaid执行链路工作流图。开发者只需理解工作流逻辑，无需深入实现细节！
+
+**✨ 核心价值：让AI成为你的代码理解助手**
+- 🧠 **自动分析**：智能解析函数逻辑和执行流程
+- 📊 **可视化**：自动生成直观的Mermaid工作流图
+- ⚡ **高效开发**：专注业务逻辑，减少代码阅读时间
+- 🎯 **快速理解**：新手也能快速掌握复杂代码结构
+
+---
+
 在Python函数文档中渲染Mermaid工作流预览的VSCode扩展。支持多种Mermaid图表类型的实时预览，提供现代化的交互体验。
 
-![Demo](https://github.com/jianduo1/mermaid-render-anywhere/blob/main/icon.jpg)
+<div align="center">
+  <img src="https://github.com/jianduo1/mermaid-render-anywhere/blob/main/icon.jpg" width="200" alt="Mermaid Render Anywhere Icon">
+</div>
 
 ## 🖼️ 效果展示
 
@@ -48,9 +63,16 @@
 |--------|------|
 | `Cmd+R` | 打开Mermaid图表预览 |
 
-## 📝 示例
+## 📝 使用示例
 
-在Python函数的文档字符串中添加Mermaid图表：
+### 🤖 AI辅助工作流生成
+
+**推荐提示词：**
+```
+💡 分析这个函数功能，在函数doc注释里面，添加mermaid执行链路工作流。
+```
+
+使用此提示词让AI分析并生成如下工作流：
 
 ```python
 def data_processing_pipeline():
