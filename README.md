@@ -5,7 +5,12 @@
 
 在Python函数文档中渲染Mermaid工作流预览的VSCode扩展。支持多种Mermaid图表类型的实时预览，提供现代化的交互体验。
 
-![Demo](icon.jpg)
+![Demo](https://github.com/jianduo1/mermaid-render-anywhere/blob/main/icon.jpg)
+
+## 🖼️ 效果展示
+
+![Demo](https://github.com/jianduo1/mermaid-render-anywhere/blob/main/assets/render.png)
+
 
 ## ✨ 功能特性
 
