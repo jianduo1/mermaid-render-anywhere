@@ -351,8 +351,8 @@ class MermaidCodeLensProvider implements vscode.CodeLensProvider {
       const hasValidMermaidContent = this.hasValidMermaidContent(mermaidCode.trim());
       if (!hasValidMermaidContent) return;
       
-      // 使用mermaid代码块的实际行号作为CodeLens位置
-      const mermaidLineNumber = location.mermaidLineNumber - 1; // 转换为0索引
+      // 计算第一行实际 mermaid 代码内容的位置
+      const mermaidLineNumber = this.findFirstMermaidContentLine(document, location.mermaidLineNumber - 1);
       const range = new vscode.Range(mermaidLineNumber, 0, mermaidLineNumber, 0);
       
       // 构建上下文信息
@@ -372,6 +372,41 @@ class MermaidCodeLensProvider implements vscode.CodeLensProvider {
     });
     
     return codeLenses;
+  }
+
+  /**
+   * 查找第一行实际的 mermaid 代码内容
+   * @param document - 文档对象
+   * @param mermaidStartLine - ```mermaid 行的索引（0-based）
+   * @returns 第一行实际 mermaid 代码内容的行索引（0-based）
+   */
+  private findFirstMermaidContentLine(document: vscode.TextDocument, mermaidStartLine: number): number {
+    const totalLines = document.lineCount;
+    
+    // 从 ```mermaid 行的下一行开始查找
+    for (let i = mermaidStartLine + 1; i < totalLines; i++) {
+      const line = document.lineAt(i).text;
+      
+      // 跳过空行和只有注释符号的行
+      const trimmedLine = line.trim();
+      if (trimmedLine === '' || trimmedLine === '*' || trimmedLine.match(/^\s*\*\s*$/)) {
+        continue;
+      }
+      
+      // 如果遇到结束标记，说明没有找到有效内容
+      if (trimmedLine.includes('```')) {
+        break;
+      }
+      
+      // 清理注释符号后检查是否有实际内容
+      const cleanedLine = line.replace(/^\s*[\*\/]*\s*/, '').trim();
+      if (cleanedLine && !cleanedLine.startsWith('```')) {
+        return i;
+      }
+    }
+    
+    // 如果没找到实际内容行，返回原始位置
+    return mermaidStartLine;
   }
 
   /**
