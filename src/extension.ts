@@ -142,7 +142,7 @@ function extractAllMermaidFromFile(document: vscode.TextDocument): {mermaidBlock
   // 匹配mermaid代码块 - 支持注释中的格式
   // 匹配标准格式: ```mermaid ... ```
   // 匹配注释格式: * ```mermaid ... * ```
-  const mermaidPattern = /(?:^\s*\*?\s*)?```mermaid\s*([\s\S]*?)\s*```(?:\s*\*?\s*$)?/gm;
+  const mermaidPattern = /(?:^\s*\*?\s*)?```mermaid(?:\s*$|\s*\n)([\s\S]*?)\s*```(?:\s*\*?\s*$)?/gm;
   let match;
   let blockIndex = 0;
   
@@ -401,7 +401,7 @@ class MermaidCodeLensProvider implements vscode.CodeLensProvider {
       // 清理注释符号后检查是否有实际内容
       const cleanedLine = line.replace(/^\s*[\*\/]*\s*/, '').trim();
       if (cleanedLine && !cleanedLine.startsWith('```')) {
-        return i;
+        return i - 1;
       }
     }
     
