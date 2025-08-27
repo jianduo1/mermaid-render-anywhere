@@ -139,6 +139,110 @@ class LazyLoadManager {
 }
 
 /**
+ * 滚轮锁定管理器
+ * 控制全局滚轮行为：缩放模式 vs 位移模式
+ * 
+ * ```mermaid
+ * graph TD
+ *  A["用户点击锁定/解锁按钮"] --> B["ScrollLockManager.toggleLock()"]
+ *  B --> C["更新 isLocked 状态"]
+ *  C --> D["保存到 localStorage"]
+ *  C --> E["更新按钮UI"]
+ *  
+ *  F["滚轮事件触发"] --> G{"检查锁定状态"}
+ *  G -->|解锁状态| H["缩放模式<br/>ChartInteractionManager.handleZoom()<br/>PreviewManager.handleWheel()"]
+ *  G -->|锁定状态| I["位移模式<br/>根据 deltaX/deltaY 移动图表"]
+ *  
+ *  H --> J["scale变换"]
+ *  I --> K["translate变换"]
+ *  
+ *  L["应用范围"] --> M["卡片预览"]
+ *  L --> N["大图预览"]
+ *  
+ *  style A fill:#e1f5fe
+ *  style B fill:#fff3e0
+ *  style G fill:#f3e5f5
+ *  style H fill:#e8f5e8
+ *  style I fill:#ffebee
+ *  ```
+ */
+class ScrollLockManager {
+    constructor() {
+        this.isLocked = false; // false: 缩放模式, true: 位移模式
+        this.lockBtn = null;
+    }
+
+    /**
+     * 初始化滚轮锁定管理器
+     */
+    initialize() {
+        this.lockBtn = document.getElementById('scrollLockBtn');
+        if (this.lockBtn) {
+            this.lockBtn.addEventListener('click', () => this.toggleLock());
+        }
+        
+        // 从localStorage读取之前的设置
+        const savedLockState = localStorage.getItem('mermaid-scroll-lock');
+        if (savedLockState !== null) {
+            this.isLocked = savedLockState === 'true';
+        }
+        
+        this.updateLockButton();
+        console.log('滚轮锁定管理器初始化完成，当前模式:', this.isLocked ? '位移模式' : '缩放模式');
+    }
+
+    /**
+     * 切换锁定状态
+     */
+    toggleLock() {
+        this.isLocked = !this.isLocked;
+        localStorage.setItem('mermaid-scroll-lock', this.isLocked.toString());
+        this.updateLockButton();
+        console.log('滚轮模式切换为:', this.isLocked ? '位移模式' : '缩放模式');
+    }
+
+    /**
+     * 更新锁定按钮状态
+     */
+    updateLockButton() {
+        if (!this.lockBtn) return;
+        
+        // 更新按钮图标和标题
+        if (this.isLocked) {
+            // 锁定状态 - 位移模式
+            this.lockBtn.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                    <circle cx="12" cy="16" r="1"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+            `;
+            this.lockBtn.title = '当前：位移模式（点击切换为缩放模式）';
+            this.lockBtn.classList.add('locked');
+        } else {
+            // 解锁状态 - 缩放模式
+            this.lockBtn.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                    <circle cx="12" cy="16" r="1"/>
+                    <path d="M7 11V7a5 5 0 0 1 5.5-4.9"/>
+                </svg>
+            `;
+            this.lockBtn.title = '当前：缩放模式（点击切换为位移模式）';
+            this.lockBtn.classList.remove('locked');
+        }
+    }
+
+    /**
+     * 获取当前锁定状态
+     * @returns {boolean} true: 位移模式, false: 缩放模式
+     */
+    getLockState() {
+        return this.isLocked;
+    }
+}
+
+/**
  * 主题管理器
  * 处理亮色/暗色主题切换和SVG样式适配
  */
@@ -392,12 +496,13 @@ class ThemeManager {
  * 处理图表的缩放、拖拽等交互功能
  */
 class ChartInteractionManager {
-    constructor() {
+    constructor(scrollLockManager = null) {
         this.currentScale = 1;
         this.isDragging = false;
         this.dragStart = { x: 0, y: 0 };
         this.currentTranslate = { x: 0, y: 0 };
         this.currentContainer = null;
+        this.scrollLockManager = scrollLockManager;
     }
 
     /**
@@ -437,22 +542,37 @@ class ChartInteractionManager {
     }
 
     /**
-     * 处理缩放
+     * 处理缩放和位移
      * @param {WheelEvent} event - 滚轮事件
      * @param {HTMLElement} container - 容器元素
      */
     handleZoom(event, container) {
         event.preventDefault();
         
-        const rect = container.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
+        // 检查滚轮锁定状态
+        const isLocked = this.scrollLockManager ? this.scrollLockManager.getLockState() : false;
         
-        const mouseX = event.clientX - centerX;
-        const mouseY = event.clientY - centerY;
-        
-        const delta = event.deltaY > 0 ? 0.9 : 1.1;
-        this.currentScale = Math.max(0.1, Math.min(5, this.currentScale * delta));
+        if (isLocked) {
+            // 锁定模式：位移
+            const moveDistance = 30; // 位移距离
+            const deltaX = event.deltaX || 0;
+            const deltaY = event.deltaY || 0;
+            
+            // 根据滚轮方向进行位移
+            this.currentTranslate.x -= deltaX * 0.5;
+            this.currentTranslate.y -= deltaY * 0.5;
+        } else {
+            // 解锁模式：缩放
+            const rect = container.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            
+            const mouseX = event.clientX - centerX;
+            const mouseY = event.clientY - centerY;
+            
+            const delta = event.deltaY > 0 ? 0.9 : 1.1;
+            this.currentScale = Math.max(0.1, Math.min(5, this.currentScale * delta));
+        }
         
         this.updateTransform(container);
     }
@@ -538,7 +658,8 @@ class MermaidRenderer {
         this.renderState = new RenderStateManager();
         this.lazyLoader = new LazyLoadManager(this.handleLazyRender.bind(this));
         this.themeManager = new ThemeManager();
-        this.interactionManager = new ChartInteractionManager();
+        this.scrollLockManager = new ScrollLockManager();
+        this.interactionManager = new ChartInteractionManager(this.scrollLockManager);
         this.vscode = acquireVsCodeApi();
     }
 
@@ -550,6 +671,7 @@ class MermaidRenderer {
         
         // 初始化各个管理器
         this.themeManager.initialize();
+        this.scrollLockManager.initialize();
         
         // 等待Mermaid库加载
         const mermaidLoaded = await this.waitForMermaid();
@@ -1036,7 +1158,7 @@ class UIController {
     constructor(renderer) {
         this.renderer = renderer;
         this.allChartsCollapsed = false;
-        this.previewManager = new PreviewManager();
+        this.previewManager = new PreviewManager(renderer.scrollLockManager);
     }
 
     /**
@@ -1230,7 +1352,7 @@ class UIController {
  * 处理图表预览功能，支持缩放、拖拽、全屏等高级功能
  */
 class PreviewManager {
-    constructor() {
+    constructor(scrollLockManager = null) {
         // 缩放和变换状态
         this.previewScale = 1;
         this.minScale = 0.1;
@@ -1246,6 +1368,9 @@ class PreviewManager {
         this.currentIndex = -1;
         this.currentSvg = null;
         this.originalSvgSize = { width: 0, height: 0 };
+        
+        // 滚轮锁定管理器引用
+        this.scrollLockManager = scrollLockManager;
     }
 
     /**
@@ -1406,29 +1531,45 @@ class PreviewManager {
     }
 
     /**
-     * 处理滚轮缩放
+     * 处理滚轮缩放和位移
      * @param {WheelEvent} event - 滚轮事件
      */
     handleWheel(event) {
         event.preventDefault();
         
-        const delta = event.deltaY > 0 ? -this.scaleStep : this.scaleStep;
-        const newScale = Math.max(this.minScale, Math.min(this.maxScale, this.previewScale + delta));
+        // 检查滚轮锁定状态
+        const isLocked = this.scrollLockManager ? this.scrollLockManager.getLockState() : false;
         
-        if (newScale !== this.previewScale) {
-            // 计算缩放中心点
-            const rect = event.currentTarget.getBoundingClientRect();
-            const centerX = event.clientX - rect.left - rect.width / 2;
-            const centerY = event.clientY - rect.top - rect.height / 2;
+        if (isLocked) {
+            // 锁定模式：位移
+            const deltaX = event.deltaX || 0;
+            const deltaY = event.deltaY || 0;
             
-            // 调整变换位置以保持缩放中心
-            const scaleFactor = newScale / this.previewScale;
-            this.previewCurrentTranslate.x -= centerX * (scaleFactor - 1);
-            this.previewCurrentTranslate.y -= centerY * (scaleFactor - 1);
+            // 根据滚轮方向进行位移
+            this.previewCurrentTranslate.x -= deltaX * 0.5;
+            this.previewCurrentTranslate.y -= deltaY * 0.5;
             
-            this.previewScale = newScale;
             this.updatePreviewTransform();
-            this.updatePreviewInfo();
+        } else {
+            // 解锁模式：缩放
+            const delta = event.deltaY > 0 ? -this.scaleStep : this.scaleStep;
+            const newScale = Math.max(this.minScale, Math.min(this.maxScale, this.previewScale + delta));
+            
+            if (newScale !== this.previewScale) {
+                // 计算缩放中心点
+                const rect = event.currentTarget.getBoundingClientRect();
+                const centerX = event.clientX - rect.left - rect.width / 2;
+                const centerY = event.clientY - rect.top - rect.height / 2;
+                
+                // 调整变换位置以保持缩放中心
+                const scaleFactor = newScale / this.previewScale;
+                this.previewCurrentTranslate.x -= centerX * (scaleFactor - 1);
+                this.previewCurrentTranslate.y -= centerY * (scaleFactor - 1);
+                
+                this.previewScale = newScale;
+                this.updatePreviewTransform();
+                this.updatePreviewInfo();
+            }
         }
     }
 

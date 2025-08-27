@@ -101,6 +101,20 @@ body {
     opacity: 0.8;
 }
 
+/* 滚轮锁定按钮样式 */
+.control-btn.locked {
+    background: var(--vscode-button-secondaryBackground, #4a4a4a);
+    color: var(--vscode-button-secondaryForeground, #ffffff);
+}
+
+.control-btn.locked:hover {
+    background: var(--vscode-button-secondaryHoverBackground, #5a5a5a);
+}
+
+.control-btn.locked svg {
+    stroke: #4a9eff; /* 蓝色表示锁定状态 */
+}
+
 /* 内容区域 */
 .content {
     flex: 1;
