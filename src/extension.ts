@@ -40,12 +40,12 @@ const languagePatterns: Record<string, LanguagePattern> = {
   javascript: {
     functions: [
       /^(\s*)(?:async\s+)?function\s+(\w+)\s*\(/,
-      /^(\s*)(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?\(/,
-      /^(\s*)(\w+)\s*:\s*(?:async\s+)?function\s*\(/,
-      /^(\s*)(\w+)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>/
+      /^(\s*)(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>/,
+      /^(\s*)(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?function\s*\(/,
+      /^(\s*)(\w+)\s*:\s*(?:async\s+)?function\s*\(/
     ],
     classes: [
-      /^(\s*)class\s+(\w+)\s*[\{]?/,
+      /^(\s*)class\s+(\w+)\s*(?:\{|extends|$)/,
       /^(\s*)(?:const|let|var)\s+(\w+)\s*=\s*class\s*/
     ],
     methods: [
@@ -64,6 +64,36 @@ const languagePatterns: Record<string, LanguagePattern> = {
     ],
     methods: [
       /^(\s*)(?:public|private|protected)?\s*(?:async\s+)?(\w+)\s*\([^)]*\)\s*[:\{]/
+    ]
+  },
+  // TypeScript JSX
+  typescriptreact: {
+    functions: [
+      /^(\s*)(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*\(/,
+      /^(\s*)(?:const|let|var)\s+(\w+)\s*:\s*React\.FC/,
+      /^(\s*)(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>/
+    ],
+    classes: [
+      /^(\s*)(?:export\s+)?(?:abstract\s+)?class\s+(\w+)\s*/,
+      /^(\s*)(?:export\s+)?interface\s+(\w+)\s*/
+    ],
+    methods: [
+      /^(\s*)(?:public|private|protected)?\s*(?:async\s+)?(\w+)\s*\([^)]*\)\s*[:\{]/
+    ]
+  },
+  // JavaScript JSX
+  javascriptreact: {
+    functions: [
+      /^(\s*)(?:async\s+)?function\s+(\w+)\s*\(/,
+      /^(\s*)(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>/,
+      /^(\s*)(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?function\s*\(/
+    ],
+    classes: [
+      /^(\s*)class\s+(\w+)\s*(?:\{|extends|$)/,
+      /^(\s*)(?:const|let|var)\s+(\w+)\s*=\s*class\s*/
+    ],
+    methods: [
+      /^(\s*)(?:async\s+)?(\w+)\s*\([^)]*\)\s*\{/
     ]
   },
   java: {
@@ -127,6 +157,7 @@ function extractAllMermaidFromFile(document: vscode.TextDocument): {mermaidBlock
       mermaidBlocks.push(code);
       
       const matchStartLine = text.substring(0, match.index).split("\n").length - 1;
+      const matchEndLine = text.substring(0, match.index + match[0].length).split("\n").length - 1;
       const mermaidLineNumber = matchStartLine + 1;
       
       // 获取语言特定的模式
@@ -135,47 +166,32 @@ function extractAllMermaidFromFile(document: vscode.TextDocument): {mermaidBlock
       
       if (patterns) {
         // 根据语言类型决定搜索方向
-        const searchForward = document.languageId === 'java' || document.languageId === 'javascript' || document.languageId === 'typescript' || document.languageId === 'go';
+        const searchForward = document.languageId === 'java' || document.languageId === 'javascript' || document.languageId === 'typescript' || document.languageId === 'typescriptreact' || document.languageId === 'javascriptreact' || document.languageId === 'go';
         
         if (searchForward) {
           // 向后查找函数定义（Java/JS注释在函数前面）
-          for (let i = matchStartLine; i < lines.length; i++) {
+          let searchLimit = Math.min(matchStartLine + 50, lines.length); // 限制搜索范围，避免匹配到其他地方的代码
+          
+          for (let i = matchStartLine; i < searchLimit; i++) {
             const line = lines[i];
             
-            // 检查类定义
-            for (const classPattern of patterns.classes) {
-              const classMatch = classPattern.exec(line);
-              if (classMatch) {
-                const name = classMatch[2] || classMatch[1];
+            // 优先检查方法定义（在类内部）
+            for (const methodPattern of patterns.methods) {
+              const methodMatch = methodPattern.exec(line);
+              if (methodMatch) {
+                const name = methodMatch[2] || methodMatch[1];
                 if (name && !foundInfo) {
                   foundInfo = {
                     name: name,
                     lineNumber: i + 1,
-                    type: 'class'
+                    type: 'method'
                   };
+                  break;
                 }
               }
             }
             
-            // 检查方法定义（在类内部）
-            if (!foundInfo) {
-              for (const methodPattern of patterns.methods) {
-                const methodMatch = methodPattern.exec(line);
-                if (methodMatch) {
-                  const name = methodMatch[2] || methodMatch[1];
-                  if (name) {
-                    foundInfo = {
-                      name: name,
-                      lineNumber: i + 1,
-                      type: 'method'
-                    };
-                    break;
-                  }
-                }
-              }
-            }
-            
-            // 检查函数定义
+            // 然后检查函数定义
             if (!foundInfo) {
               for (const funcPattern of patterns.functions) {
                 const funcMatch = funcPattern.exec(line);
@@ -187,6 +203,28 @@ function extractAllMermaidFromFile(document: vscode.TextDocument): {mermaidBlock
                       lineNumber: i + 1,
                       type: 'function'
                     };
+                    break;
+                  }
+                }
+              }
+            }
+            
+            // 最后检查类定义（但要确保这个mermaid块确实属于这个类）
+            if (!foundInfo) {
+              for (const classPattern of patterns.classes) {
+                const classMatch = classPattern.exec(line);
+                if (classMatch) {
+                  const name = classMatch[2] || classMatch[1];
+                  if (name) {
+                    // 检查这个mermaid块是否在类定义之前（类注释）
+                    const distanceFromClass = i - matchEndLine;
+                    if (distanceFromClass <= 10 && distanceFromClass >= 0) { // 只有当mermaid块结束后10行内且在类定义之前时才关联
+                      foundInfo = {
+                        name: name,
+                        lineNumber: i + 1,
+                        type: 'class'
+                      };
+                    }
                     break;
                   }
                 }
@@ -670,7 +708,11 @@ class PopupMermaidPreviewProvider {
     return mermaidBlocks
       .map((code, index) => {
         const locationData = locationInfo && locationInfo[index] ? locationInfo[index] : null;
-        const title = `${index + 1} / ${mermaidBlocks.length}`;
+        // 生成更有意义的标题
+        let title = `${index + 1} / ${mermaidBlocks.length}`;
+        if (locationData && locationData.name && locationData.name !== "定位") {
+          title = locationData.name;
+        }
         
         // 根据类型选择图标和显示文本
         let icon = "📍";
@@ -721,7 +763,7 @@ class PopupMermaidPreviewProvider {
                           <circle cx="12" cy="12" r="3"/>
                       </svg>
                   </button>
-                  <button class="action-btn" onclick="event.stopPropagation(); copyCode(\`${code.replace(/`/g, "\\`")}\`)" title="复制代码">
+                  <button class="action-btn" onclick="event.stopPropagation(); copyCode(\`${code.replace(/`/g, '\\`').replace(/\n/g, '\\n').replace(/"/g, '&quot;')}\`)" title="复制代码">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                           <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
                           <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>

@@ -11,7 +11,13 @@
     "Other"
   ],
   "activationEvents": [
-    "onLanguage:python"
+    "onLanguage:python",
+    "onLanguage:javascript",
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact",
+    "onLanguage:javascriptreact",
+    "onLanguage:java",
+    "onLanguage:go"
   ],
   "main": "./out/extension.js",
   "contributes": {

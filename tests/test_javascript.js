@@ -2,27 +2,27 @@
  * 用户认证类
  * ```mermaid
  * graph TD
- *  A["用户点击锁定/解锁按钮"] --> B["ScrollLockManager.toggleLock()"]
- *  B --> C["更新 isLocked 状态"]
- *  C --> D["保存到 localStorage"]
- *  C --> E["更新按钮UI"]
- *  
- *  F["滚轮事件触发"] --> G{"检查锁定状态"}
- *  G -->|解锁状态| H["缩放模式<br/>ChartInteractionManager.handleZoom()<br/>PreviewManager.handleWheel()"]
- *  G -->|锁定状态| I["位移模式<br/>根据 deltaX/deltaY 移动图表"]
- *  
- *  H --> J["scale变换"]
- *  I --> K["translate变换"]
- *  
- *  L["应用范围"] --> M["卡片预览"]
- *  L --> N["大图预览"]
- *  
- *  style A fill:#e1f5fe
- *  style B fill:#fff3e0
- *  style G fill:#f3e5f5
- *  style H fill:#e8f5e8
- *  style I fill:#ffebee
- *  ```
+ *     A["用户点击锁定/解锁按钮"] --> B["ScrollLockManager.toggleLock()"]
+ *     B --> C["更新 isLocked 状态"]
+ *     C --> D["保存到 localStorage"]
+ *     C --> E["更新按钮UI"]
+ *     
+ *     F["滚轮事件触发"] --> G{"检查锁定状态"}
+ *     G -->|解锁状态| H["缩放模式<br/>ChartInteractionManager.handleZoom()<br/>PreviewManager.handleWheel()"]
+ *     G -->|锁定状态| I["位移模式<br/>根据 deltaX/deltaY 移动图表"]
+ *     
+ *     H --> J["scale变换"]
+ *     I --> K["translate变换"]
+ *     
+ *     L["应用范围"] --> M["卡片预览"]
+ *     L --> N["大图预览"]
+ *     
+ *     style A fill:#e1f5fe
+ *     style B fill:#fff3e0
+ *     style G fill:#f3e5f5
+ *     style H fill:#e8f5e8
+ *     style I fill:#ffebee
+ * ```
  */
 class UserAuth {
     constructor() {

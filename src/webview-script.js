@@ -142,29 +142,11 @@ class LazyLoadManager {
  * 滚轮锁定管理器
  * 控制全局滚轮行为：缩放模式 vs 位移模式
  * 
- * ```mermaid
- * graph TD
- *  A["用户点击锁定/解锁按钮"] --> B["ScrollLockManager.toggleLock()"]
- *  B --> C["更新 isLocked 状态"]
- *  C --> D["保存到 localStorage"]
- *  C --> E["更新按钮UI"]
- *  
- *  F["滚轮事件触发"] --> G{"检查锁定状态"}
- *  G -->|解锁状态| H["缩放模式<br/>ChartInteractionManager.handleZoom()<br/>PreviewManager.handleWheel()"]
- *  G -->|锁定状态| I["位移模式<br/>根据 deltaX/deltaY 移动图表"]
- *  
- *  H --> J["scale变换"]
- *  I --> K["translate变换"]
- *  
- *  L["应用范围"] --> M["卡片预览"]
- *  L --> N["大图预览"]
- *  
- *  style A fill:#e1f5fe
- *  style B fill:#fff3e0
- *  style G fill:#f3e5f5
- *  style H fill:#e8f5e8
- *  style I fill:#ffebee
- *  ```
+ * 功能说明：
+ * - 解锁状态：滚轮进行缩放操作
+ * - 锁定状态：滚轮进行位移操作
+ * - 状态持久化到 localStorage
+ * - 同时控制卡片预览和大图预览的滚轮行为
  */
 class ScrollLockManager {
     constructor() {
@@ -1684,27 +1666,21 @@ class PreviewManager {
     }
 
     /**
-     * 适应屏幕
+     * 重置为100%
      */
     fitToScreen() {
         const content = document.getElementById('previewContent');
         const svg = content?.querySelector('svg');
         if (!svg || !content) return;
 
-        const contentRect = content.getBoundingClientRect();
-        const svgRect = svg.getBoundingClientRect();
-        
-        // 计算适合的缩放比例
-        const scaleX = (contentRect.width * 0.9) / this.originalSvgSize.width;
-        const scaleY = (contentRect.height * 0.9) / this.originalSvgSize.height;
-        
-        this.previewScale = Math.min(scaleX, scaleY, 1); // 不超过原始大小
+        // 直接设置为100%缩放比例
+        this.previewScale = 1;
         this.previewCurrentTranslate = { x: 0, y: 0 };
         
         this.updatePreviewTransform();
         this.updatePreviewInfo();
         
-        console.log(`适应屏幕：缩放比例 ${(this.previewScale * 100).toFixed(0)}%`);
+        console.log(`重置为100%：缩放比例 ${(this.previewScale * 100).toFixed(0)}%`);
     }
 
 

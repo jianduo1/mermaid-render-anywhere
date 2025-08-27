@@ -73,7 +73,7 @@ def user_authentication_flow():
     pass
 
 
-def class_relationship():
+class Relationship():
     """
     类关系图示例
     
@@ -97,40 +97,38 @@ def class_relationship():
     """
     pass
 
+    def state_machine(self):
+        """
+        状态机示例
+        
+        ```mermaid
+        stateDiagram-v2
+            [*] --> 待处理
+            待处理 --> 处理中: 开始处理
+            处理中 --> 已完成: 处理成功
+            处理中 --> 失败: 处理失败
+            失败 --> 待处理: 重试
+            已完成 --> [*]
+        ```
+        """
+        pass
 
-def state_machine():
-    """
-    状态机示例
-    
-    ```mermaid
-    stateDiagram-v2
-        [*] --> 待处理
-        待处理 --> 处理中: 开始处理
-        处理中 --> 已完成: 处理成功
-        处理中 --> 失败: 处理失败
-        失败 --> 待处理: 重试
-        已完成 --> [*]
-    ```
-    """
-    pass
-
-
-def project_timeline():
-    """
-    项目时间线
-    
-    ```mermaid
-    gantt
-        title 项目开发计划
-        dateFormat  YYYY-MM-DD
-        section 设计阶段
-        需求分析    :done, des1, 2024-01-01, 2024-01-07
-        系统设计    :done, des2, 2024-01-08, 2024-01-15
-        section 开发阶段
-        编码实现    :active, dev1, 2024-01-16, 2024-02-15
-        测试调试    :dev2, 2024-02-16, 2024-03-01
-        section 部署阶段
-        部署上线    :deploy, 2024-03-02, 2024-03-10
-    ```
-    """
-    pass 
+    def project_timeline(self):
+        """
+        项目时间线
+        
+        ```mermaid
+        gantt
+            title 项目开发计划
+            dateFormat  YYYY-MM-DD
+            section 设计阶段
+            需求分析    :done, des1, 2024-01-01, 2024-01-07
+            系统设计    :done, des2, 2024-01-08, 2024-01-15
+            section 开发阶段
+            编码实现    :active, dev1, 2024-01-16, 2024-02-15
+            测试调试    :dev2, 2024-02-16, 2024-03-01
+            section 部署阶段
+            部署上线    :deploy, 2024-03-02, 2024-03-10
+        ```
+        """
+        pass 
