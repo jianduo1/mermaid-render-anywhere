@@ -317,6 +317,138 @@ function extractAllMermaidFromFile(document: vscode.TextDocument): {mermaidBlock
 
 
 
+// Mermaid CodeLens 提供者
+class MermaidCodeLensProvider implements vscode.CodeLensProvider {
+  private _onDidChangeCodeLenses: vscode.EventEmitter<void> = new vscode.EventEmitter<void>();
+  public readonly onDidChangeCodeLenses: vscode.Event<void> = this._onDidChangeCodeLenses.event;
+
+  constructor() {}
+
+  public provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.CodeLens[] | Thenable<vscode.CodeLens[]> {
+    // 检查是否启用了内联预览按钮功能
+    const config = vscode.workspace.getConfiguration('mermaidRenderAnywhere');
+    const enableDisplayInlinedButton = config.get<boolean>('enableDisplayInlinedButton', true);
+    
+    if (!enableDisplayInlinedButton) {
+      return [];
+    }
+    
+    const codeLenses: vscode.CodeLens[] = [];
+    
+    // 复用已有的extractAllMermaidFromFile函数来获取所有mermaid块及其位置信息
+    const {mermaidBlocks, locationInfo} = extractAllMermaidFromFile(document);
+    
+    if (!mermaidBlocks || mermaidBlocks.length === 0 || !locationInfo) {
+      return [];
+    }
+    
+    // 为每个有效的mermaid代码块创建CodeLens
+    mermaidBlocks.forEach((mermaidCode, index) => {
+      const location = locationInfo[index];
+      if (!location) return;
+      
+      // 进一步验证是否包含有效的Mermaid语法
+      const hasValidMermaidContent = this.hasValidMermaidContent(mermaidCode.trim());
+      if (!hasValidMermaidContent) return;
+      
+      // 使用mermaid代码块的实际行号作为CodeLens位置
+      const mermaidLineNumber = location.mermaidLineNumber - 1; // 转换为0索引
+      const range = new vscode.Range(mermaidLineNumber, 0, mermaidLineNumber, 0);
+      
+      // 构建上下文信息
+      const contextInfo = {
+        name: location.name,
+        type: location.type
+      };
+      
+      // 创建CodeLens
+      const codeLens = new vscode.CodeLens(range, {
+        title: "🎨 预览图表",
+        command: "mermaid-render-anywhere.previewSingleMermaid",
+        arguments: [mermaidCode, location.lineNumber, contextInfo, document.fileName]
+      });
+      
+      codeLenses.push(codeLens);
+    });
+    
+    return codeLenses;
+  }
+
+  /**
+   * 验证是否包含有效的Mermaid内容
+   * @param code - 清理后的Mermaid代码
+   * @returns 是否包含有效的Mermaid语法
+   */
+  private hasValidMermaidContent(code: string): boolean {
+    if (!code || code.trim().length === 0) {
+      return false;
+    }
+    
+    // 检查是否包含常见的Mermaid图表类型关键词
+    const mermaidKeywords = [
+      // 流程图
+      'graph', 'flowchart', 'subgraph',
+      // 时序图
+      'sequenceDiagram', 'participant', 'actor',
+      // 类图
+      'classDiagram', 'class',
+      // 状态图
+      'stateDiagram', 'state',
+      // 甘特图
+      'gantt', 'dateFormat', 'section',
+      // 饼图
+      'pie', 'title',
+      // 用户旅程图
+      'journey', 'title',
+      // Git图
+      'gitgraph', 'commit', 'branch',
+      // ER图
+      'erDiagram',
+      // 需求图
+      'requirementDiagram',
+      // C4图
+      'C4Context', 'C4Container', 'C4Component'
+    ];
+    
+    // 检查是否包含箭头或连接符（Mermaid图表的基本元素）
+    const connectionPatterns = [
+      /-->/,     // 箭头
+      /---/,     // 连线
+      /-\./,     // 虚线
+      /==>/,     // 粗箭头
+      /\|-\|/,   // 竖线连接
+      /->>/, /-->>/, /->/, /-\.->/, // 时序图箭头
+      /\|\|--/, /\|\|-\./, // 时序图生命线
+      /\s*\w+\s*-->\s*\w+/, // 基本节点连接
+      /\s*\w+\s*:\s*\w+/    // 标签格式
+    ];
+    
+    const lowerCode = code.toLowerCase();
+    
+    // 检查是否包含Mermaid关键词
+    const hasKeyword = mermaidKeywords.some(keyword => 
+      lowerCode.includes(keyword.toLowerCase())
+    );
+    
+    // 检查是否包含连接模式
+    const hasConnection = connectionPatterns.some(pattern => 
+      pattern.test(code)
+    );
+    
+    // 检查是否包含节点定义（字母数字组合）
+    const hasNodes = /\b[A-Za-z][A-Za-z0-9]*\b/.test(code);
+    
+    // 至少要包含关键词或连接模式，并且有节点定义
+    return (hasKeyword || hasConnection) && hasNodes;
+  }
+
+
+
+  public refresh(): void {
+    this._onDidChangeCodeLenses.fire();
+  }
+}
+
 // 弹出式预览面板提供者
 class PopupMermaidPreviewProvider {
   private static instance: PopupMermaidPreviewProvider;
@@ -390,6 +522,50 @@ class PopupMermaidPreviewProvider {
           break;
       }
     });
+  }
+
+  /**
+   * 显示单个Mermaid图表预览
+   * @param mermaidCode - Mermaid代码
+   * @param contextInfo - 上下文信息（函数/类名等）
+   * @param lineNumber - 行号
+   * @param filePath - 文件路径
+   */
+  public showSingleMermaid(mermaidCode: string, contextInfo: {name: string; type: string}, lineNumber: number, filePath?: string) {
+    console.log('showSingleMermaid 接收到的参数 - contextInfo:', contextInfo, 'lineNumber:', lineNumber, 'filePath:', filePath);
+    
+    // 构建单个图表的数据
+    const mermaidBlocks = [mermaidCode];
+    const locationInfo = [{
+      name: contextInfo.name,
+      lineNumber: lineNumber,
+      type: contextInfo.type,
+      mermaidLineNumber: lineNumber
+    }];
+    
+    // 生成标题
+    const fileName = filePath ? path.basename(filePath, path.extname(filePath)) : 'Mermaid图表';
+    let title = '';
+    
+    switch (contextInfo.type) {
+      case 'function':
+        title = `${fileName} - 函数 ${contextInfo.name}`;
+        break;
+      case 'method':
+        title = `${fileName} - 方法 ${contextInfo.name}`;
+        break;
+      case 'class':
+        title = `${fileName} - 类 ${contextInfo.name}`;
+        break;
+      default:
+        title = `${fileName} - ${contextInfo.name}`;
+        break;
+    }
+    
+    // 调用通用的showPopup方法
+    this.showPopup(mermaidBlocks, title, locationInfo, filePath);
+    
+    vscode.window.showInformationMessage(`🎨 已显示 ${contextInfo.name} 的Mermaid图表`);
   }
 
   private async _jumpToFunction(lineNumber: number, fileName?: string) {
@@ -1291,6 +1467,9 @@ export function activate(context: vscode.ExtensionContext) {
   // 创建弹出式预览提供者
   const popupProvider = PopupMermaidPreviewProvider.getInstance(context.extensionUri);
   
+  // 创建CodeLens提供者
+  const codeLensProvider = new MermaidCodeLensProvider();
+  
   // 注册提取所有Mermaid图表命令
   let extractAllPopupCommand = vscode.commands.registerCommand("mermaid-render-anywhere.extractAllMermaidPopup", async () => {
     const editor = vscode.window.activeTextEditor;
@@ -1316,12 +1495,49 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.window.showInformationMessage(`🎨 已提取并显示 ${mermaidBlocks.length} 个Mermaid图表`);
   });
 
+  // 注册单个Mermaid图表预览命令
+  let previewSingleCommand = vscode.commands.registerCommand("mermaid-render-anywhere.previewSingleMermaid", 
+    (mermaidCode: string, lineNumber: number, contextInfo: {name: string; type: string}, filePath?: string) => {
+      console.log('单图表预览命令调用 - contextInfo:', contextInfo, 'lineNumber:', lineNumber);
+      
+      // 清理mermaid代码（移除注释符号）
+      const cleanedCode = cleanCommentSymbols(mermaidCode);
+      
+      if (!cleanedCode.trim()) {
+        vscode.window.showWarningMessage("Mermaid代码为空");
+        return;
+      }
+      
+      // 显示单个图表预览
+      popupProvider.showSingleMermaid(cleanedCode, contextInfo, lineNumber, filePath);
+    }
+  );
+
   // 注册测试命令
   let testCommand = vscode.commands.registerCommand("mermaid-render-anywhere.helloWorld", () => {
     vscode.window.showInformationMessage("Hello World from Render Mermaid in Function Doc!");
   });
 
-  context.subscriptions.push(extractAllPopupCommand, testCommand);
+  // 注册CodeLens提供者 - 支持多种语言
+  const supportedLanguages = ['python', 'javascript', 'typescript', 'typescriptreact', 'javascriptreact', 'java', 'go'];
+  const codeLensDisposables = supportedLanguages.map(language => 
+    vscode.languages.registerCodeLensProvider({ language: language }, codeLensProvider)
+  );
+
+  // 监听配置变化，刷新CodeLens
+  const configChangeDisposable = vscode.workspace.onDidChangeConfiguration(event => {
+    if (event.affectsConfiguration('mermaidRenderAnywhere.enableDisplayInlinedButton')) {
+      codeLensProvider.refresh();
+    }
+  });
+
+  context.subscriptions.push(
+    extractAllPopupCommand, 
+    previewSingleCommand,
+    testCommand,
+    configChangeDisposable,
+    ...codeLensDisposables
+  );
 }
 
 export function deactivate() {

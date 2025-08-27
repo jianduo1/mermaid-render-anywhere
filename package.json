@@ -2,7 +2,7 @@
   "name": "mermaid-render-anywhere",
   "displayName": "Mermaid Render Anywhere",
   "description": "在Python函数文档中渲染Mermaid工作流预览",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "icon": "icon.jpg",
   "engines": {
     "vscode": "^1.74.0"
@@ -28,6 +28,11 @@
         "category": "Mermaid"
       },
       {
+        "command": "mermaid-render-anywhere.previewSingleMermaid",
+        "title": "预览单个Mermaid图表",
+        "category": "Mermaid"
+      },
+      {
         "command": "mermaid-render-anywhere.helloWorld",
         "title": "Hello World"
       }
@@ -47,7 +52,17 @@
         "key": "cmd+r",
         "when": "true"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Mermaid Render Anywhere",
+      "properties": {
+        "mermaidRenderAnywhere.enableDisplayInlinedButton": {
+          "type": "boolean",
+          "default": true,
+          "description": "启用/禁用Mermaid代码块上方的内联预览按钮"
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

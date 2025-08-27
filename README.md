@@ -1,6 +1,6 @@
 # Mermaid Render Anywhere
 
-[![Version](https://img.shields.io/badge/version-0.0.1-blue.svg)](https://github.com/jianduo1/mermaid-render-anywhere)
+[![Version](https://img.shields.io/badge/version-0.0.3-blue.svg)](https://github.com/jianduo1/mermaid-render-anywhere)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 ## 🤖 AI辅助的效率神器
@@ -29,12 +29,25 @@
 
 ## ✨ 功能特性
 
-### 🎨 弹出式预览
+### 🎯 双模式预览
+
+| 特性 | 📁 文件预览模式 | 🎨 脚本预览模式 |
+|------|---------------|---------------|
+| **触发方式** | 右键菜单 / `Cmd+R` | 点击代码块上方的预览按钮 |
+| **预览范围** | 整个文件中的所有Mermaid图表 | 单个Mermaid代码块 |
+| **适用场景** | 查看文件整体架构和流程 | 快速预览特定函数/方法的图表 |
+| **界面布局** | 侧边栏多卡片展示 | 侧边栏单图表聚焦 |
+| **智能定位** | 自动识别所有函数/类位置 | 精确定位当前代码块上下文 |
+| **导出功能** | 支持批量导出 | 支持单图表导出 |
+| **跳转功能** | 跳转到对应函数/类定义 | 跳转到Mermaid代码块位置 |
+
+### 🎨 交互体验
 - **拖拽移动**: 点击并拖拽图表进行移动
-- **鼠标滚轮缩放**: 使用鼠标滚轮进行缩放
-- **按钮缩放**: 点击放大/缩小/重置按钮
-- **美观界面**: 现代化的卡片式设计
-- **复制代码**: 一键复制Mermaid代码
+- **鼠标滚轮缩放**: 使用鼠标滚轮进行缩放操作
+- **按钮缩放**: 点击放大/缩小/重置按钮精确控制
+- **美观界面**: 现代化的卡片式设计，支持明暗主题
+- **复制代码**: 一键复制Mermaid代码到剪贴板
+- **全屏预览**: 支持全屏大图预览模式
 
 ### 📊 图表支持
 - 流程图 (graph)
@@ -43,17 +56,32 @@
 - 状态图 (stateDiagram)
 - 甘特图 (gantt)
 - 饼图 (pie)
+- 用户旅程图 (journey)
+- Git图 (gitgraph)
 
-### ⚡ 快速操作
-- 右键菜单快速访问
-- 键盘快捷键支持
-- 实时渲染预览
+### ⚡ 智能特性
+- **语言支持**: Python, JavaScript, TypeScript, Java, Go
+- **智能识别**: 自动识别函数、方法、类中的Mermaid图表
+- **实时渲染**: 支持懒加载和智能重试机制
+- **错误处理**: 完善的错误提示和恢复机制
 
 ## 🚀 使用方法
 
-1. 将光标放在包含Mermaid图表的Python函数中
-2. 右键选择 **"提取所有Mermaid图表"** 或使用快捷键 `Cmd+R`
-3. 在弹出的预览窗口中享受拖拽和缩放功能！
+### 📁 文件预览模式
+1. 在包含Mermaid图表的文件中右键选择 **"提取所有Mermaid图表"**
+2. 或使用快捷键 `Cmd+R` 快速打开
+3. 在侧边栏查看文件中的所有Mermaid图表
+
+### 🎨 脚本预览模式  
+1. 在代码中的Mermaid代码块上方会自动显示 **"🎨 预览图表"** 按钮
+2. 点击按钮即可预览当前代码块的图表
+3. 支持函数、方法、类中的Mermaid图表智能识别
+
+### 🎛️ 预览操作
+- **拖拽移动**: 鼠标拖拽图表
+- **缩放操作**: 鼠标滚轮或缩放按钮
+- **全屏预览**: 点击预览按钮查看大图
+- **复制导出**: 复制代码或导出SVG图片
 
 
 
@@ -61,114 +89,27 @@
 
 | 快捷键 | 功能 |
 |--------|------|
-| `Cmd+R` | 打开Mermaid图表预览 |
+| `Cmd+R` | 打开文件预览模式 |
 
-## 📝 使用示例
+## ⚙️ 配置选项
 
-### 🤖 AI辅助工作流生成
+在VSCode设置中搜索 "Mermaid Render Anywhere" 可配置以下选项：
 
-**推荐提示词：**
-```
-💡 分析这个函数功能，在函数doc注释里面，添加mermaid执行链路工作流。
-```
+| 配置项 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `mermaidRenderAnywhere.enableDisplayInlinedButton` | boolean | `true` | 启用/禁用Mermaid代码块上方的内联预览按钮 |
 
-使用此提示词让AI分析并生成如下工作流：
+### 配置示例
 
-```python
-def data_processing_pipeline():
-    """
-    数据处理管道
-    
-    ```mermaid
-    graph TD
-        A[输入数据] --> B[数据验证]
-        B --> C{数据有效?}
-        C -->|是| D[数据清洗]
-        C -->|否| E[错误处理]
-        D --> F[特征提取]
-        F --> G[模型训练]
-        G --> H[结果输出]
-        E --> H
-    ```
-    """
-    pass
+在 `settings.json` 中添加：
 
-def user_authentication_flow():
-    """
-    用户认证流程
-    
-    ```mermaid
-    sequenceDiagram
-        participant U as 用户
-        participant A as 应用
-        participant S as 服务器
-        
-        U->>A: 输入凭证
-        A->>S: 验证请求
-        S-->>A: 验证结果
-        A-->>U: 登录成功/失败
-    ```
-    """
-    pass
+```json
+{
+  "mermaidRenderAnywhere.enableDisplayInlinedButton": false
+}
 ```
 
-## 📦 安装
-
-### 从VSCode市场安装
-1. 在VSCode中打开扩展面板 (`Ctrl+Shift+X`)
-2. 搜索 "Mermaid Render Anywhere"
-3. 点击安装
-
-### 从源码安装
-```bash
-git clone https://github.com/jianduo1/mermaid-render-anywhere.git
-cd mermaid-render-anywhere
-npm install
-npm run compile
-```
-
-## 🛠️ 开发
-
-### 环境要求
-- Node.js >= 16.x
-- VSCode >= 1.74.0
-- TypeScript
-
-### 开发步骤
-```bash
-# 克隆项目
-git clone https://github.com/jianduo1/mermaid-render-anywhere.git
-cd mermaid-render-anywhere
-
-# 安装依赖
-npm install
-
-# 编译项目
-npm run compile
-
-# 监听模式 (开发时使用)
-npm run watch
-```
-
-### 调试
-1. 在VSCode中打开项目
-2. 按 `F5` 启动调试模式
-3. 在新的VSCode窗口中测试扩展
-
-### 项目结构
-```
-mermaid-render-anywhere/
-├── src/
-│   ├── extension.ts          # 主扩展文件
-│   ├── mermaid-preview.html  # 预览页面模板
-│   ├── webview-script.js     # 前端交互脚本
-│   ├── webview-styles.css    # 样式文件
-│   └── libs/
-│       └── mermaid.min.js    # Mermaid库
-├── tests/                    # 测试文件
-├── package.json             # 项目配置
-└── README.md               # 项目说明
-```
+> 💡 **提示**: 如果你只想使用文件预览模式，可以将此选项设为 `false` 来隐藏内联预览按钮。
 
 ## 🤝 贡献
 
