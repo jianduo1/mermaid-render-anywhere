@@ -1,0 +1,20 @@
+/* 全屏预览样式文件 - 如果需要额外的样式可以在这里添加 */
+
+/* 目前所有样式都内联在fullscreen.html中，这个文件保留用于未来扩展 */
+
+/* 示例：可以添加动画效果或主题变量 */
+:root {
+    --overlay-bg: rgba(0, 0, 0, 0.95);
+    --header-bg: rgba(0, 0, 0, 0.8);
+    --btn-bg: rgba(255, 255, 255, 0.1);
+    --btn-hover-bg: rgba(255, 255, 255, 0.2);
+    --close-btn-bg: rgba(220, 53, 69, 0.8);
+    --close-btn-hover-bg: rgba(220, 53, 69, 1);
+    --border-color: rgba(255, 255, 255, 0.1);
+    --text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* 可以在这里添加响应式设计或额外的交互效果 */
+@media (max-width: 768px) {
+    /* 移动设备适配 */
+}

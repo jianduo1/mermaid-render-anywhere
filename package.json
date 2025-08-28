@@ -2,7 +2,7 @@
   "name": "mermaid-render-anywhere",
   "displayName": "Mermaid Render Anywhere",
   "description": "在Python函数文档中渲染Mermaid工作流预览",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "icon": "icon.jpg",
   "engines": {
     "vscode": "^1.74.0"
@@ -60,8 +60,8 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./ && cp src/mermaid-preview.html out/ && cp src/webview-script.js out/ && cp src/webview-styles.css out/ && cp -r src/libs out/",
-    "watch": "tsc -watch -p ./ && cp src/mermaid-preview.html out/ && cp src/webview-script.js out/ && cp src/webview-styles.css out/ && cp -r src/libs out/"
+    "compile": "tsc -p ./ && cp src/webview.html out/ && cp src/webview.js out/ && cp src/webview.css out/ && cp src/fullscreen.html out/ && cp src/fullscreen.js out/ && cp src/fullscreen.css out/ && cp -r src/libs out/",
+    "watch": "tsc -watch -p ./ && cp src/webview.html out/ && cp src/webview.js out/ && cp src/webview.css out/ && cp src/fullscreen.html out/ && cp src/fullscreen.js out/ && cp src/fullscreen.css out/ && cp -r src/libs out/"
   },
   "devDependencies": {
     "@types/node": "16.x",

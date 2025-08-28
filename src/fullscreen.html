@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全屏预览 - {{TITLE}}</title>
+    <link rel="stylesheet" href="./fullscreen.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: rgba(0, 0, 0, 0.95);
+            color: white;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 999999;
+        }
+        
+        .overlay-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.95);
+            display: flex;
+            flex-direction: column;
+            z-index: 999999;
+            backdrop-filter: blur(10px);
+        }
+        
+        .overlay-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: rgba(0, 0, 0, 0.8);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 30px;
+            z-index: 1000000;
+            opacity: 0.9;
+            transition: opacity 0.3s ease;
+            backdrop-filter: blur(20px);
+        }
+        
+        .overlay-header:hover {
+            opacity: 1;
+        }
+        
+        .overlay-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: white;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+        }
+        
+        .overlay-controls {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .overlay-btn {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(10px);
+        }
+        
+        .overlay-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.4);
+            transform: translateY(-1px);
+        }
+        
+        .close-btn {
+            background: rgba(220, 53, 69, 0.8);
+            border-color: rgba(220, 53, 69, 0.5);
+        }
+        
+        .close-btn:hover {
+            background: rgba(220, 53, 69, 1);
+            border-color: rgba(220, 53, 69, 0.8);
+        }
+        
+        .overlay-content {
+            position: fixed;
+            top: 60px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            overflow: hidden;
+        }
+        
+        .svg-container {
+            max-width: 95vw;
+            max-height: 85vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 12px;
+            padding: 20px;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+        
+        .svg-container svg {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
+        }
+        
+        /* 键盘提示 */
+        .keyboard-hint {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: rgba(255, 255, 255, 0.8);
+            padding: 12px 24px;
+            border-radius: 20px;
+            font-size: 14px;
+            opacity: 0.7;
+            z-index: 1000000;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        /* 动画效果 */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+        }
+        
+        .overlay-container {
+            animation: fadeIn 0.3s ease-out;
+        }
+        
+        .svg-container {
+            animation: fadeIn 0.4s ease-out 0.1s both;
+        }
+        
+        /* 鼠标移动时显示控制栏 */
+        .overlay-header {
+            transform: translateY(-100%);
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+        
+        .overlay-container:hover .overlay-header,
+        .overlay-header:hover {
+            transform: translateY(0);
+        }
+        
+        /* 初始显示控制栏 */
+        .overlay-container.show-header .overlay-header {
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body>
+    <div class="overlay-container show-header" id="overlayContainer">
+        <div class="overlay-header">
+            <div class="overlay-title">{{TITLE}} - 全屏预览</div>
+            <div class="overlay-controls">
+                <button class="overlay-btn" onclick="exportImage()" title="导出图片">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7,10 12,15 17,10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    导出图片
+                </button>
+                <button class="overlay-btn close-btn" onclick="closeFullscreen()" title="关闭全屏 (ESC)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                    关闭
+                </button>
+            </div>
+        </div>
+        
+        <div class="overlay-content">
+            <div class="svg-container">
+                {{SVG_CONTENT}}
+            </div>
+        </div>
+        
+        <div class="keyboard-hint">
+            按 ESC 键关闭全屏预览
+        </div>
+    </div>
+
+    <script src="./fullscreen.js"></script>
+</body>
+</html>

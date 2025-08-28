@@ -817,17 +817,17 @@ class PopupMermaidPreviewProvider {
 
   private _getPopupHtml(mermaidBlocks: string[], functionName: string, locationInfo?: {name: string; lineNumber: number; type: string; mermaidLineNumber: number}[], filePath?: string): string {
     // 读取HTML模板文件
-    const templatePath = path.join(__dirname, "mermaid-preview.html");
+    const templatePath = path.join(__dirname, "webview.html");
     let htmlTemplate = fs.readFileSync(templatePath, "utf8");
 
     // 获取资源文件的webview URI
     const mermaidLibPath = vscode.Uri.file(path.join(__dirname, "libs", "mermaid.min.js"));
     const mermaidLibUri = this._panel?.webview.asWebviewUri(mermaidLibPath);
 
-    const webviewScriptPath = vscode.Uri.file(path.join(__dirname, "webview-script.js"));
+    const webviewScriptPath = vscode.Uri.file(path.join(__dirname, "webview.js"));
     const webviewScriptUri = this._panel?.webview.asWebviewUri(webviewScriptPath);
 
-    const webviewStylesPath = vscode.Uri.file(path.join(__dirname, "webview-styles.css"));
+    const webviewStylesPath = vscode.Uri.file(path.join(__dirname, "webview.css"));
     const webviewStylesUri = this._panel?.webview.asWebviewUri(webviewStylesPath);
 
     // 直接使用传入的functionName作为fileName，因为调用方已经正确计算了文件名
@@ -838,11 +838,11 @@ class PopupMermaidPreviewProvider {
     console.log("注入到webview的fileName:", fileName);
     console.log("注入到webview的locationInfo:", locationInfo);
     htmlTemplate = htmlTemplate.replace(
-      '<script src="./webview-script.js"></script>',
+      '<script src="./webview.js"></script>',
       `<script>
         window.currentFileName = '${fileName}';
         window.locationInfo = ${JSON.stringify(locationInfo || [])};
-      </script>\n    <script src="./webview-script.js"></script>`
+      </script>\n    <script src="./webview.js"></script>`
     );
 
     // 然后替换模板变量和URI
@@ -850,8 +850,8 @@ class PopupMermaidPreviewProvider {
       .replace("{{FUNCTION_NAME}}", functionName)
       .replace("{{MERMAID_CARDS}}", this._generateMermaidCards(mermaidBlocks, locationInfo, filePath))
       .replace("./libs/mermaid.min.js", mermaidLibUri?.toString() || "./libs/mermaid.min.js")
-      .replace("./webview-script.js", webviewScriptUri?.toString() || "./webview-script.js")
-      .replace("./webview-styles.css", webviewStylesUri?.toString() || "./webview-styles.css");
+      .replace("./webview.js", webviewScriptUri?.toString() || "./webview.js")
+      .replace("./webview.css", webviewStylesUri?.toString() || "./webview.css");
 
     return htmlTemplate;
   }
@@ -959,497 +959,65 @@ class PopupMermaidPreviewProvider {
   }
 
   private _getFullscreenOverlayHtml(svg: string, title: string, index: number): string {
-    return `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>全屏预览 - ${title}</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        html, body {
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: rgba(0, 0, 0, 0.95);
-            color: white;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            z-index: 999999;
-        }
-        
-        .overlay-container {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            width: 100vw;
-            height: 100vh;
-            background: rgba(0, 0, 0, 0.95);
-            display: flex;
-            flex-direction: column;
-            z-index: 999999;
-            backdrop-filter: blur(10px);
-        }
-        
-        .overlay-header {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 60px;
-            background: rgba(0, 0, 0, 0.8);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 30px;
-            z-index: 1000000;
-            opacity: 0.9;
-            transition: opacity 0.3s ease;
-            backdrop-filter: blur(20px);
-        }
-        
-        .overlay-header:hover {
-            opacity: 1;
-        }
-        
-        .overlay-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: white;
-            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-        }
-        
-        .overlay-controls {
-            display: flex;
-            gap: 15px;
-        }
-        
-        .overlay-btn {
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            padding: 8px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            transition: all 0.2s ease;
-            backdrop-filter: blur(10px);
-        }
-        
-        .overlay-btn:hover {
-            background: rgba(255, 255, 255, 0.2);
-            border-color: rgba(255, 255, 255, 0.4);
-            transform: translateY(-1px);
-        }
-        
-        .close-btn {
-            background: rgba(220, 53, 69, 0.8);
-            border-color: rgba(220, 53, 69, 0.5);
-        }
-        
-        .close-btn:hover {
-            background: rgba(220, 53, 69, 1);
-            border-color: rgba(220, 53, 69, 0.8);
-        }
-        
-        .overlay-content {
-            position: fixed;
-            top: 60px;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            overflow: hidden;
-        }
-        
-        .svg-container {
-            max-width: 95vw;
-            max-height: 85vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: rgba(255, 255, 255, 0.02);
-            border-radius: 12px;
-            padding: 20px;
-            backdrop-filter: blur(5px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-        }
-        
-        .svg-container svg {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-            filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
-        }
-        
-        /* 键盘提示 */
-        .keyboard-hint {
-            position: fixed;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.8);
-            color: rgba(255, 255, 255, 0.8);
-            padding: 12px 24px;
-            border-radius: 20px;
-            font-size: 14px;
-            opacity: 0.7;
-            z-index: 1000000;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        /* 动画效果 */
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: scale(0.95);
-            }
-            to {
-                opacity: 1;
-                transform: scale(1);
-            }
-        }
-        
-        .overlay-container {
-            animation: fadeIn 0.3s ease-out;
-        }
-        
-        .svg-container {
-            animation: fadeIn 0.4s ease-out 0.1s both;
-        }
-        
-        /* 鼠标移动时显示控制栏 */
-        .overlay-header {
-            transform: translateY(-100%);
-            transition: transform 0.3s ease, opacity 0.3s ease;
-        }
-        
-        .overlay-container:hover .overlay-header,
-        .overlay-header:hover {
-            transform: translateY(0);
-        }
-        
-        /* 初始显示控制栏 */
-        .overlay-container.show-header .overlay-header {
-            transform: translateY(0);
-        }
-    </style>
-</head>
-<body>
-    <div class="overlay-container show-header" id="overlayContainer">
-        <div class="overlay-header">
-            <div class="overlay-title">${title} - 全屏预览</div>
-            <div class="overlay-controls">
-                <button class="overlay-btn" onclick="exportImage()" title="导出图片">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                        <polyline points="7,10 12,15 17,10"/>
-                        <line x1="12" y1="15" x2="12" y2="3"/>
-                    </svg>
-                    导出图片
-                </button>
-                <button class="overlay-btn close-btn" onclick="closeFullscreen()" title="关闭全屏 (ESC)">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="18" y1="6" x2="6" y2="18"/>
-                        <line x1="6" y1="6" x2="18" y2="18"/>
-                    </svg>
-                    关闭
-                </button>
-            </div>
-        </div>
-        
-        <div class="overlay-content">
-            <div class="svg-container">
-                ${svg}
-            </div>
-        </div>
-        
-        <div class="keyboard-hint">
-            按 ESC 键关闭全屏预览
-        </div>
-    </div>
+    // 读取HTML模板文件
+    const templatePath = path.join(__dirname, "fullscreen.html");
+    let htmlTemplate = fs.readFileSync(templatePath, "utf8");
 
-    <script>
-        const vscode = acquireVsCodeApi();
-        
-        function closeFullscreen() {
-            vscode.postMessage({
-                type: 'closeFullscreen'
-            });
-        }
-        
-        function exportImage() {
-            const svg = document.querySelector('svg');
-            if (svg) {
-                const svgData = new XMLSerializer().serializeToString(svg);
-                vscode.postMessage({
-                    type: 'exportImage',
-                    svg: svgData,
-                    index: ${index},
-                    fileName: '${title}-fullscreen',
-                    isDarkTheme: true
-                });
-            }
-        }
-        
-        // ESC键关闭
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                closeFullscreen();
-            }
-        });
-        
-        // 鼠标移动显示控制栏
-        let headerTimer;
-        const container = document.getElementById('overlayContainer');
-        
-        document.addEventListener('mousemove', () => {
-            container.classList.add('show-header');
-            clearTimeout(headerTimer);
-            headerTimer = setTimeout(() => {
-                container.classList.remove('show-header');
-            }, 3000);
-        });
-        
-        // 初始显示控制栏，3秒后自动隐藏
-        setTimeout(() => {
-            container.classList.remove('show-header');
-        }, 3000);
-        
-        // 点击背景关闭
-        document.addEventListener('click', (e) => {
-            if (e.target === container || e.target.classList.contains('overlay-content')) {
-                closeFullscreen();
-            }
-        });
-    </script>
-</body>
-</html>`;
+    // 获取资源文件的webview URI
+    const fullscreenScriptPath = vscode.Uri.file(path.join(__dirname, "fullscreen.js"));
+    const fullscreenScriptUri = this._fullscreenPanel?.webview.asWebviewUri(fullscreenScriptPath);
+    
+    const fullscreenStylesPath = vscode.Uri.file(path.join(__dirname, "fullscreen.css"));
+    const fullscreenStylesUri = this._fullscreenPanel?.webview.asWebviewUri(fullscreenStylesPath);
+
+    // 注入变量到HTML中，供JavaScript使用
+    htmlTemplate = htmlTemplate.replace(
+      '<script src="./fullscreen.js"></script>',
+      `<script>
+        window.chartIndex = ${index};
+        window.chartTitle = '${title}';
+      </script>\n    <script src="./fullscreen.js"></script>`
+    );
+
+    // 替换模板变量和URI
+    htmlTemplate = htmlTemplate
+      .replace("{{TITLE}}", title)
+      .replace("{{SVG_CONTENT}}", svg)
+      .replace("./fullscreen.js", fullscreenScriptUri?.toString() || "./fullscreen.js")
+      .replace("./fullscreen.css", fullscreenStylesUri?.toString() || "./fullscreen.css");
+
+    return htmlTemplate;
   }
 
   private _getFullscreenHtml(svg: string, title: string, index: number): string {
-    return `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>全屏预览 - ${title}</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background-color: var(--vscode-editor-background);
-            color: var(--vscode-editor-foreground);
-            overflow: hidden;
-            height: 100vh;
-            width: 100vw;
-        }
-        
-        .fullscreen-container {
-            position: relative;
-            width: 100vw;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .fullscreen-header {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 50px;
-            background-color: var(--vscode-titleBar-activeBackground);
-            border-bottom: 1px solid var(--vscode-panel-border);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 20px;
-            z-index: 1000;
-            opacity: 0.9;
-            transition: opacity 0.3s ease;
-        }
-        
-        .fullscreen-header:hover {
-            opacity: 1;
-        }
-        
-        .fullscreen-title {
-            font-size: 14px;
-            font-weight: 500;
-            color: var(--vscode-titleBar-activeForeground);
-        }
-        
-        .fullscreen-controls {
-            display: flex;
-            gap: 10px;
-        }
-        
-        .fullscreen-btn {
-            background: var(--vscode-button-background);
-            color: var(--vscode-button-foreground);
-            border: none;
-            padding: 6px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            transition: background-color 0.2s ease;
-        }
-        
-        .fullscreen-btn:hover {
-            background: var(--vscode-button-hoverBackground);
-        }
-        
-        .fullscreen-content {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 60px 20px 20px;
-            overflow: hidden;
-        }
-        
-        .svg-container {
-            max-width: 100%;
-            max-height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .svg-container svg {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-        }
-        
-        /* 键盘提示 */
-        .keyboard-hint {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--vscode-notifications-background);
-            color: var(--vscode-notifications-foreground);
-            padding: 8px 16px;
-            border-radius: 4px;
-            font-size: 12px;
-            opacity: 0.8;
-            z-index: 1000;
-        }
-    </style>
-</head>
-<body>
-    <div class="fullscreen-container">
-        <div class="fullscreen-header">
-            <div class="fullscreen-title">${title} - 全屏预览</div>
-            <div class="fullscreen-controls">
-                <button class="fullscreen-btn" onclick="exportImage()" title="导出图片">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                        <polyline points="7,10 12,15 17,10"/>
-                        <line x1="12" y1="15" x2="12" y2="3"/>
-                    </svg>
-                    导出
-                </button>
-                <button class="fullscreen-btn" onclick="closeFullscreen()" title="关闭 (ESC)">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="18" y1="6" x2="6" y2="18"/>
-                        <line x1="6" y1="6" x2="18" y2="18"/>
-                    </svg>
-                    关闭
-                </button>
-            </div>
-        </div>
-        
-        <div class="fullscreen-content">
-            <div class="svg-container">
-                ${svg}
-            </div>
-        </div>
-        
-        <div class="keyboard-hint">
-            按 ESC 键关闭全屏预览
-        </div>
-    </div>
+    // 读取HTML模板文件
+    const templatePath = path.join(__dirname, "fullscreen.html");
+    let htmlTemplate = fs.readFileSync(templatePath, "utf8");
 
-    <script>
-        const vscode = acquireVsCodeApi();
-        
-        function closeFullscreen() {
-            vscode.postMessage({
-                type: 'closeFullscreen'
-            });
-        }
-        
-        function exportImage() {
-            const svg = document.querySelector('svg');
-            if (svg) {
-                const svgData = new XMLSerializer().serializeToString(svg);
-                vscode.postMessage({
-                    type: 'exportImage',
-                    svg: svgData,
-                    index: ${index},
-                    fileName: '${title}-fullscreen',
-                    isDarkTheme: document.body.classList.contains('vscode-dark')
-                });
-            }
-        }
-        
-        // ESC键关闭
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                closeFullscreen();
-            }
-        });
-        
-        // 自动隐藏头部控制栏
-        let headerTimer;
-        const header = document.querySelector('.fullscreen-header');
-        
-        document.addEventListener('mousemove', () => {
-            header.style.opacity = '0.9';
-            clearTimeout(headerTimer);
-            headerTimer = setTimeout(() => {
-                header.style.opacity = '0.3';
-            }, 3000);
-        });
-        
-        // 初始化时也启动定时器
-        headerTimer = setTimeout(() => {
-            header.style.opacity = '0.3';
-        }, 3000);
-    </script>
-</body>
-</html>`;
+    // 获取资源文件的webview URI
+    const fullscreenScriptPath = vscode.Uri.file(path.join(__dirname, "fullscreen.js"));
+    const fullscreenScriptUri = this._fullscreenPanel?.webview.asWebviewUri(fullscreenScriptPath);
+    
+    const fullscreenStylesPath = vscode.Uri.file(path.join(__dirname, "fullscreen.css"));
+    const fullscreenStylesUri = this._fullscreenPanel?.webview.asWebviewUri(fullscreenStylesPath);
+
+    // 注入变量到HTML中，供JavaScript使用
+    htmlTemplate = htmlTemplate.replace(
+      '<script src="./fullscreen.js"></script>',
+      `<script>
+        window.chartIndex = ${index};
+        window.chartTitle = '${title}';
+      </script>\n    <script src="./fullscreen.js"></script>`
+    );
+
+    // 替换模板变量和URI
+    htmlTemplate = htmlTemplate
+      .replace("{{TITLE}}", title)
+      .replace("{{SVG_CONTENT}}", svg)
+      .replace("./fullscreen.js", fullscreenScriptUri?.toString() || "./fullscreen.js")
+      .replace("./fullscreen.css", fullscreenStylesUri?.toString() || "./fullscreen.css");
+
+    return htmlTemplate;
   }
 }
 
@@ -1524,3 +1092,4 @@ export function activate(context: vscode.ExtensionContext) {
 export function deactivate() {
   console.log("Render Mermaid in Function Doc 扩展已停用");
 }
+
