@@ -2,7 +2,7 @@
   "name": "mermaid-render-anywhere",
   "displayName": "Mermaid Render Anywhere",
   "description": "在Python函数文档中渲染Mermaid工作流预览",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "icon": "icon.jpg",
   "engines": {
     "vscode": "^1.74.0"
@@ -11,13 +11,7 @@
     "Other"
   ],
   "activationEvents": [
-    "onLanguage:python",
-    "onLanguage:javascript",
-    "onLanguage:typescript",
-    "onLanguage:typescriptreact",
-    "onLanguage:javascriptreact",
-    "onLanguage:java",
-    "onLanguage:go"
+    "onStartupFinished"
   ],
   "main": "./out/extension.js",
   "contributes": {

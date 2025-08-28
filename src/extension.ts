@@ -3,18 +3,17 @@ import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
 
-
 // 清理注释符号的辅助函数
 function cleanCommentSymbols(code: string): string {
   // 按行处理，移除每行开头的注释符号
-  const lines = code.split('\n');
-  const cleanedLines = lines.map(line => {
+  const lines = code.split("\n");
+  const cleanedLines = lines.map((line) => {
     // 移除行首的空格、星号、斜杠等注释符号
-    return line.replace(/^\s*[\*\/]*\s*/, '');
+    return line.replace(/^\s*[\*\/]*\s*/, "");
   });
-  
+
   // 重新组合，保持原有的缩进结构
-  return cleanedLines.join('\n').trim();
+  return cleanedLines.join("\n").trim();
 }
 
 // 语言特定的模式定义
@@ -26,94 +25,48 @@ interface LanguagePattern {
 
 const languagePatterns: Record<string, LanguagePattern> = {
   python: {
-    functions: [
-      /^(\s*)(?:async\s+)?def\s+(\w+)\s*\(/,
-      /^(\s*)@\w+\s*\n\s*(?:async\s+)?def\s+(\w+)\s*\(/m
-    ],
-    classes: [
-      /^(\s*)class\s+(\w+)\s*[\(:]?/
-    ],
-    methods: [
-      /^(\s*)(?:async\s+)?def\s+(\w+)\s*\(\s*self/
-    ]
+    functions: [/^(\s*)(?:async\s+)?def\s+(\w+)\s*\(/, /^(\s*)@\w+\s*\n\s*(?:async\s+)?def\s+(\w+)\s*\(/m],
+    classes: [/^(\s*)class\s+(\w+)\s*[\(:]?/],
+    methods: [/^(\s*)(?:async\s+)?def\s+(\w+)\s*\(\s*self/],
   },
   javascript: {
     functions: [
       /^(\s*)(?:async\s+)?function\s+(\w+)\s*\(/,
       /^(\s*)(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>/,
       /^(\s*)(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?function\s*\(/,
-      /^(\s*)(\w+)\s*:\s*(?:async\s+)?function\s*\(/
+      /^(\s*)(\w+)\s*:\s*(?:async\s+)?function\s*\(/,
     ],
-    classes: [
-      /^(\s*)class\s+(\w+)\s*(?:\{|extends|$)/,
-      /^(\s*)(?:const|let|var)\s+(\w+)\s*=\s*class\s*/
-    ],
-    methods: [
-      /^(\s*)(?:async\s+)?(\w+)\s*\([^)]*\)\s*\{/
-    ]
+    classes: [/^(\s*)class\s+(\w+)\s*(?:\{|extends|$)/, /^(\s*)(?:const|let|var)\s+(\w+)\s*=\s*class\s*/],
+    methods: [/^(\s*)(?:async\s+)?(\w+)\s*\([^)]*\)\s*\{/],
   },
   typescript: {
-    functions: [
-      /^(\s*)(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*\(/,
-      /^(\s*)(?:const|let|var)\s+(\w+)\s*:\s*\([^)]*\)\s*=>/,
-      /^(\s*)(\w+)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>/
-    ],
-    classes: [
-      /^(\s*)(?:export\s+)?(?:abstract\s+)?class\s+(\w+)\s*/,
-      /^(\s*)(?:export\s+)?interface\s+(\w+)\s*/
-    ],
-    methods: [
-      /^(\s*)(?:public|private|protected)?\s*(?:async\s+)?(\w+)\s*\([^)]*\)\s*[:\{]/
-    ]
+    functions: [/^(\s*)(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*\(/, /^(\s*)(?:const|let|var)\s+(\w+)\s*:\s*\([^)]*\)\s*=>/, /^(\s*)(\w+)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>/],
+    classes: [/^(\s*)(?:export\s+)?(?:abstract\s+)?class\s+(\w+)\s*/, /^(\s*)(?:export\s+)?interface\s+(\w+)\s*/],
+    methods: [/^(\s*)(?:public|private|protected)?\s*(?:async\s+)?(\w+)\s*\([^)]*\)\s*[:\{]/],
   },
   // TypeScript JSX
   typescriptreact: {
-    functions: [
-      /^(\s*)(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*\(/,
-      /^(\s*)(?:const|let|var)\s+(\w+)\s*:\s*React\.FC/,
-      /^(\s*)(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>/
-    ],
-    classes: [
-      /^(\s*)(?:export\s+)?(?:abstract\s+)?class\s+(\w+)\s*/,
-      /^(\s*)(?:export\s+)?interface\s+(\w+)\s*/
-    ],
-    methods: [
-      /^(\s*)(?:public|private|protected)?\s*(?:async\s+)?(\w+)\s*\([^)]*\)\s*[:\{]/
-    ]
+    functions: [/^(\s*)(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*\(/, /^(\s*)(?:const|let|var)\s+(\w+)\s*:\s*React\.FC/, /^(\s*)(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>/],
+    classes: [/^(\s*)(?:export\s+)?(?:abstract\s+)?class\s+(\w+)\s*/, /^(\s*)(?:export\s+)?interface\s+(\w+)\s*/],
+    methods: [/^(\s*)(?:public|private|protected)?\s*(?:async\s+)?(\w+)\s*\([^)]*\)\s*[:\{]/],
   },
   // JavaScript JSX
   javascriptreact: {
-    functions: [
-      /^(\s*)(?:async\s+)?function\s+(\w+)\s*\(/,
-      /^(\s*)(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>/,
-      /^(\s*)(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?function\s*\(/
-    ],
-    classes: [
-      /^(\s*)class\s+(\w+)\s*(?:\{|extends|$)/,
-      /^(\s*)(?:const|let|var)\s+(\w+)\s*=\s*class\s*/
-    ],
-    methods: [
-      /^(\s*)(?:async\s+)?(\w+)\s*\([^)]*\)\s*\{/
-    ]
+    functions: [/^(\s*)(?:async\s+)?function\s+(\w+)\s*\(/, /^(\s*)(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>/, /^(\s*)(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?function\s*\(/],
+    classes: [/^(\s*)class\s+(\w+)\s*(?:\{|extends|$)/, /^(\s*)(?:const|let|var)\s+(\w+)\s*=\s*class\s*/],
+    methods: [/^(\s*)(?:async\s+)?(\w+)\s*\([^)]*\)\s*\{/],
   },
   java: {
-    functions: [
-      /^(\s*)(?:public|private|protected)?\s*(?:static\s+)?(?:\w+\s+)*(\w+)\s*\([^)]*\)\s*\{/
-    ],
-    classes: [
-      /^(\s*)(?:public\s+)?(?:abstract\s+)?class\s+(\w+)\s*/,
-      /^(\s*)(?:public\s+)?interface\s+(\w+)\s*/
-    ],
-    methods: [
-      /^(\s*)(?:public|private|protected)?\s*(?:static\s+)?(?:\w+\s+)*(\w+)\s*\([^)]*\)\s*\{/
-    ]
+    functions: [/^(\s*)(?:public|private|protected)?\s*(?:static\s+)?(?:\w+\s+)*(\w+)\s*\([^)]*\)\s*\{/],
+    classes: [/^(\s*)(?:public\s+)?(?:abstract\s+)?class\s+(\w+)\s*/, /^(\s*)(?:public\s+)?interface\s+(\w+)\s*/],
+    methods: [/^(\s*)(?:public|private|protected)?\s*(?:static\s+)?(?:\w+\s+)*(\w+)\s*\([^)]*\)\s*\{/],
   },
   go: {
     functions: [
       // 普通函数: func functionName(params) returnType
       /^(\s*)func\s+(\w+)\s*\([^)]*\)(?:\s*\([^)]*\)|\s*\w+|\s*\*\w+)?\s*\{/,
       // 无返回值函数: func functionName(params)
-      /^(\s*)func\s+(\w+)\s*\([^)]*\)\s*\{/
+      /^(\s*)func\s+(\w+)\s*\([^)]*\)\s*\{/,
     ],
     classes: [
       // 结构体: type StructName struct
@@ -121,15 +74,15 @@ const languagePatterns: Record<string, LanguagePattern> = {
       // 接口: type InterfaceName interface
       /^(\s*)type\s+(\w+)\s+interface\s*\{/,
       // 类型别名: type TypeName = OtherType 或 type TypeName OtherType
-      /^(\s*)type\s+(\w+)\s+(?:=\s*)?[\w\[\]]+/
+      /^(\s*)type\s+(\w+)\s+(?:=\s*)?[\w\[\]]+/,
     ],
     methods: [
       // 方法: func (receiver Type) methodName(params) returnType
       /^(\s*)func\s*\([^)]+\)\s*(\w+)\s*\([^)]*\)(?:\s*\([^)]*\)|\s*\w+|\s*\*\w+)?\s*\{/,
       // 无返回值方法: func (receiver Type) methodName(params)
-      /^(\s*)func\s*\([^)]+\)\s*(\w+)\s*\([^)]*\)\s*\{/
-    ]
-  }
+      /^(\s*)func\s*\([^)]+\)\s*(\w+)\s*\([^)]*\)\s*\{/,
+    ],
+  },
 };
 
 // 提取文件中所有的Mermaid代码块
@@ -138,43 +91,49 @@ function extractAllMermaidFromFile(document: vscode.TextDocument): {mermaidBlock
   const lines = text.split("\n");
   const mermaidBlocks: string[] = [];
   const locationInfo: {name: string; lineNumber: number; type: string; mermaidLineNumber: number}[] = [];
-  
+
   // 匹配mermaid代码块 - 支持注释中的格式
   // 匹配标准格式: ```mermaid ... ```
   // 匹配注释格式: * ```mermaid ... * ```
   const mermaidPattern = /(?:^\s*\*?\s*)?```mermaid(?:\s*$|\s*\n)([\s\S]*?)\s*```(?:\s*\*?\s*$)?/gm;
   let match;
   let blockIndex = 0;
-  
+
   while ((match = mermaidPattern.exec(text)) !== null) {
     let code = match[1].trim();
-    
+
     // 清理Java/C++风格的多行注释中的星号
     code = cleanCommentSymbols(code);
-    
+
     if (code) {
       // 允许重复的mermaid代码块，因为可能在不同位置有相同的图表
       mermaidBlocks.push(code);
-      
+
       const matchStartLine = text.substring(0, match.index).split("\n").length - 1;
       const matchEndLine = text.substring(0, match.index + match[0].length).split("\n").length - 1;
       const mermaidLineNumber = matchStartLine + 1;
-      
+
       // 获取语言特定的模式
       const patterns = languagePatterns[document.languageId];
       let foundInfo: {name: string; lineNumber: number; type: string} | null = null;
-      
+
       if (patterns) {
         // 根据语言类型决定搜索方向
-        const searchForward = document.languageId === 'java' || document.languageId === 'javascript' || document.languageId === 'typescript' || document.languageId === 'typescriptreact' || document.languageId === 'javascriptreact' || document.languageId === 'go';
-        
+        const searchForward =
+          document.languageId === "java" ||
+          document.languageId === "javascript" ||
+          document.languageId === "typescript" ||
+          document.languageId === "typescriptreact" ||
+          document.languageId === "javascriptreact" ||
+          document.languageId === "go";
+
         if (searchForward) {
           // 向后查找函数定义（Java/JS注释在函数前面）
           let searchLimit = Math.min(matchStartLine + 50, lines.length); // 限制搜索范围，避免匹配到其他地方的代码
-          
+
           for (let i = matchStartLine; i < searchLimit; i++) {
             const line = lines[i];
-            
+
             // 优先检查方法定义（在类内部）
             for (const methodPattern of patterns.methods) {
               const methodMatch = methodPattern.exec(line);
@@ -184,13 +143,13 @@ function extractAllMermaidFromFile(document: vscode.TextDocument): {mermaidBlock
                   foundInfo = {
                     name: name,
                     lineNumber: i + 1,
-                    type: 'method'
+                    type: "method",
                   };
                   break;
                 }
               }
             }
-            
+
             // 然后检查函数定义
             if (!foundInfo) {
               for (const funcPattern of patterns.functions) {
@@ -201,14 +160,14 @@ function extractAllMermaidFromFile(document: vscode.TextDocument): {mermaidBlock
                     foundInfo = {
                       name: name,
                       lineNumber: i + 1,
-                      type: 'function'
+                      type: "function",
                     };
                     break;
                   }
                 }
               }
             }
-            
+
             // 最后检查类定义（但要确保这个mermaid块确实属于这个类）
             if (!foundInfo) {
               for (const classPattern of patterns.classes) {
@@ -218,11 +177,12 @@ function extractAllMermaidFromFile(document: vscode.TextDocument): {mermaidBlock
                   if (name) {
                     // 检查这个mermaid块是否在类定义之前（类注释）
                     const distanceFromClass = i - matchEndLine;
-                    if (distanceFromClass <= 10 && distanceFromClass >= 0) { // 只有当mermaid块结束后10行内且在类定义之前时才关联
+                    if (distanceFromClass <= 10 && distanceFromClass >= 0) {
+                      // 只有当mermaid块结束后10行内且在类定义之前时才关联
                       foundInfo = {
                         name: name,
                         lineNumber: i + 1,
-                        type: 'class'
+                        type: "class",
                       };
                     }
                     break;
@@ -230,14 +190,14 @@ function extractAllMermaidFromFile(document: vscode.TextDocument): {mermaidBlock
                 }
               }
             }
-            
+
             if (foundInfo) break;
           }
         } else {
           // 向前查找函数定义（Python docstring在函数后面）
           for (let i = matchStartLine; i >= 0; i--) {
             const line = lines[i];
-            
+
             // 检查类定义
             for (const classPattern of patterns.classes) {
               const classMatch = classPattern.exec(line);
@@ -247,12 +207,12 @@ function extractAllMermaidFromFile(document: vscode.TextDocument): {mermaidBlock
                   foundInfo = {
                     name: name,
                     lineNumber: i + 1,
-                    type: 'class'
+                    type: "class",
                   };
                 }
               }
             }
-            
+
             // 检查方法定义（在类内部）
             if (!foundInfo) {
               for (const methodPattern of patterns.methods) {
@@ -263,14 +223,14 @@ function extractAllMermaidFromFile(document: vscode.TextDocument): {mermaidBlock
                     foundInfo = {
                       name: name,
                       lineNumber: i + 1,
-                      type: 'method'
+                      type: "method",
                     };
                     break;
                   }
                 }
               }
             }
-            
+
             // 检查函数定义
             if (!foundInfo) {
               for (const funcPattern of patterns.functions) {
@@ -281,41 +241,39 @@ function extractAllMermaidFromFile(document: vscode.TextDocument): {mermaidBlock
                     foundInfo = {
                       name: name,
                       lineNumber: i + 1,
-                      type: 'function'
+                      type: "function",
                     };
                     break;
                   }
                 }
               }
             }
-            
+
             if (foundInfo) break;
           }
         }
       }
-      
+
       // 如果没找到具体的函数/类定义，使用通用的"定位"
       if (!foundInfo) {
         foundInfo = {
           name: "定位",
           lineNumber: mermaidLineNumber,
-          type: 'location'
+          type: "location",
         };
       }
-      
+
       locationInfo.push({
         ...foundInfo,
-        mermaidLineNumber: mermaidLineNumber
+        mermaidLineNumber: mermaidLineNumber,
       });
-      
+
       blockIndex++;
     }
   }
-  
+
   return {mermaidBlocks, locationInfo: locationInfo.length > 0 ? locationInfo : undefined};
 }
-
-
 
 // Mermaid CodeLens 提供者
 class MermaidCodeLensProvider implements vscode.CodeLensProvider {
@@ -326,51 +284,51 @@ class MermaidCodeLensProvider implements vscode.CodeLensProvider {
 
   public provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.CodeLens[] | Thenable<vscode.CodeLens[]> {
     // 检查是否启用了内联预览按钮功能
-    const config = vscode.workspace.getConfiguration('mermaidRenderAnywhere');
-    const enableDisplayInlinedButton = config.get<boolean>('enableDisplayInlinedButton', true);
-    
+    const config = vscode.workspace.getConfiguration("mermaidRenderAnywhere");
+    const enableDisplayInlinedButton = config.get<boolean>("enableDisplayInlinedButton", true);
+
     if (!enableDisplayInlinedButton) {
       return [];
     }
-    
+
     const codeLenses: vscode.CodeLens[] = [];
-    
+
     // 复用已有的extractAllMermaidFromFile函数来获取所有mermaid块及其位置信息
     const {mermaidBlocks, locationInfo} = extractAllMermaidFromFile(document);
-    
+
     if (!mermaidBlocks || mermaidBlocks.length === 0 || !locationInfo) {
       return [];
     }
-    
+
     // 为每个有效的mermaid代码块创建CodeLens
     mermaidBlocks.forEach((mermaidCode, index) => {
       const location = locationInfo[index];
       if (!location) return;
-      
+
       // 进一步验证是否包含有效的Mermaid语法
       const hasValidMermaidContent = this.hasValidMermaidContent(mermaidCode.trim());
       if (!hasValidMermaidContent) return;
-      
+
       // 计算第一行实际 mermaid 代码内容的位置
       const mermaidLineNumber = this.findFirstMermaidContentLine(document, location.mermaidLineNumber - 1);
       const range = new vscode.Range(mermaidLineNumber, 0, mermaidLineNumber, 0);
-      
+
       // 构建上下文信息
       const contextInfo = {
         name: location.name,
-        type: location.type
+        type: location.type,
       };
-      
+
       // 创建CodeLens
       const codeLens = new vscode.CodeLens(range, {
         title: "🎨 预览图表",
         command: "mermaid-render-anywhere.previewSingleMermaid",
-        arguments: [mermaidCode, location.lineNumber, contextInfo, document.fileName]
+        arguments: [mermaidCode, location.lineNumber, contextInfo, document.fileName],
       });
-      
+
       codeLenses.push(codeLens);
     });
-    
+
     return codeLenses;
   }
 
@@ -382,31 +340,31 @@ class MermaidCodeLensProvider implements vscode.CodeLensProvider {
    */
   private findFirstMermaidContentLine(document: vscode.TextDocument, mermaidStartLine: number): number {
     const totalLines = document.lineCount;
-    
+
     // 从 ```mermaid 行的下一行开始查找
     for (let i = mermaidStartLine + 1; i < totalLines; i++) {
       const line = document.lineAt(i).text;
-      
+
       // 跳过空行和只有注释符号的行
       const trimmedLine = line.trim();
-      if (trimmedLine === '' || trimmedLine === '*' || trimmedLine.match(/^\s*\*\s*$/)) {
+      if (trimmedLine === "" || trimmedLine === "*" || trimmedLine.match(/^\s*\*\s*$/)) {
         continue;
       }
-      
+
       // 如果遇到结束标记，说明没有找到有效内容
-      if (trimmedLine.includes('```')) {
+      if (trimmedLine.includes("```")) {
         break;
       }
-      
+
       // 清理注释符号后检查是否有实际内容
-      const cleanedLine = line.replace(/^\s*[\*\/]*\s*/, '').trim();
-      if (cleanedLine && !cleanedLine.startsWith('```')) {
+      const cleanedLine = line.replace(/^\s*[\*\/]*\s*/, "").trim();
+      if (cleanedLine && !cleanedLine.startsWith("```")) {
         return i - 1;
       }
     }
-    
+
     // 如果没找到实际内容行，返回原始位置
-    return mermaidStartLine;
+    return mermaidStartLine + 1;
   }
 
   /**
@@ -418,66 +376,78 @@ class MermaidCodeLensProvider implements vscode.CodeLensProvider {
     if (!code || code.trim().length === 0) {
       return false;
     }
-    
+
     // 检查是否包含常见的Mermaid图表类型关键词
     const mermaidKeywords = [
       // 流程图
-      'graph', 'flowchart', 'subgraph',
+      "graph",
+      "flowchart",
+      "subgraph",
       // 时序图
-      'sequenceDiagram', 'participant', 'actor',
+      "sequenceDiagram",
+      "participant",
+      "actor",
       // 类图
-      'classDiagram', 'class',
+      "classDiagram",
+      "class",
       // 状态图
-      'stateDiagram', 'state',
+      "stateDiagram",
+      "state",
       // 甘特图
-      'gantt', 'dateFormat', 'section',
+      "gantt",
+      "dateFormat",
+      "section",
       // 饼图
-      'pie', 'title',
+      "pie",
+      "title",
       // 用户旅程图
-      'journey', 'title',
+      "journey",
+      "title",
       // Git图
-      'gitgraph', 'commit', 'branch',
+      "gitgraph",
+      "commit",
+      "branch",
       // ER图
-      'erDiagram',
+      "erDiagram",
       // 需求图
-      'requirementDiagram',
+      "requirementDiagram",
       // C4图
-      'C4Context', 'C4Container', 'C4Component'
+      "C4Context",
+      "C4Container",
+      "C4Component",
     ];
-    
+
     // 检查是否包含箭头或连接符（Mermaid图表的基本元素）
     const connectionPatterns = [
-      /-->/,     // 箭头
-      /---/,     // 连线
-      /-\./,     // 虚线
-      /==>/,     // 粗箭头
-      /\|-\|/,   // 竖线连接
-      /->>/, /-->>/, /->/, /-\.->/, // 时序图箭头
-      /\|\|--/, /\|\|-\./, // 时序图生命线
+      /-->/, // 箭头
+      /---/, // 连线
+      /-\./, // 虚线
+      /==>/, // 粗箭头
+      /\|-\|/, // 竖线连接
+      /->>/,
+      /-->>/,
+      /->/,
+      /-\.->/, // 时序图箭头
+      /\|\|--/,
+      /\|\|-\./, // 时序图生命线
       /\s*\w+\s*-->\s*\w+/, // 基本节点连接
-      /\s*\w+\s*:\s*\w+/    // 标签格式
+      /\s*\w+\s*:\s*\w+/, // 标签格式
     ];
-    
+
     const lowerCode = code.toLowerCase();
-    
+
     // 检查是否包含Mermaid关键词
-    const hasKeyword = mermaidKeywords.some(keyword => 
-      lowerCode.includes(keyword.toLowerCase())
-    );
-    
+    const hasKeyword = mermaidKeywords.some((keyword) => lowerCode.includes(keyword.toLowerCase()));
+
     // 检查是否包含连接模式
-    const hasConnection = connectionPatterns.some(pattern => 
-      pattern.test(code)
-    );
-    
+    const hasConnection = connectionPatterns.some((pattern) => pattern.test(code));
+
     // 检查是否包含节点定义（字母数字组合）
     const hasNodes = /\b[A-Za-z][A-Za-z0-9]*\b/.test(code);
-    
+
     // 至少要包含关键词或连接模式，并且有节点定义
     return (hasKeyword || hasConnection) && hasNodes;
   }
-
-
 
   public refresh(): void {
     this._onDidChangeCodeLenses.fire();
@@ -503,8 +473,8 @@ class PopupMermaidPreviewProvider {
   }
 
   public showPopup(mermaidBlocks: string[], functionName: string, locationInfo?: {name: string; lineNumber: number; type: string; mermaidLineNumber: number}[], filePath?: string) {
-    console.log('showPopup 接收到的参数 - functionName:', functionName, 'filePath:', filePath);
-    
+    console.log("showPopup 接收到的参数 - functionName:", functionName, "filePath:", filePath);
+
     // 如果已有面板，先关闭
     if (this._panel) {
       this._panel.dispose();
@@ -512,9 +482,9 @@ class PopupMermaidPreviewProvider {
 
     // 创建新的面板 - 使用 Beside 列创建拆分编辑器效果
     this._panel = vscode.window.createWebviewPanel("mermaidPopup", `🎨 ${functionName} - Mermaid 预览`, vscode.ViewColumn.Beside, {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        localResourceRoots: [this._extensionUri],
+      enableScripts: true,
+      retainContextWhenHidden: true,
+      localResourceRoots: [this._extensionUri],
     });
 
     // 设置HTML内容
@@ -567,53 +537,53 @@ class PopupMermaidPreviewProvider {
    * @param filePath - 文件路径
    */
   public showSingleMermaid(mermaidCode: string, contextInfo: {name: string; type: string}, lineNumber: number, filePath?: string) {
-    console.log('showSingleMermaid 接收到的参数 - contextInfo:', contextInfo, 'lineNumber:', lineNumber, 'filePath:', filePath);
-    
+    console.log("showSingleMermaid 接收到的参数 - contextInfo:", contextInfo, "lineNumber:", lineNumber, "filePath:", filePath);
+
     // 构建单个图表的数据
     const mermaidBlocks = [mermaidCode];
-    const locationInfo = [{
-      name: contextInfo.name,
-      lineNumber: lineNumber,
-      type: contextInfo.type,
-      mermaidLineNumber: lineNumber
-    }];
-    
+    const locationInfo = [
+      {
+        name: contextInfo.name,
+        lineNumber: lineNumber,
+        type: contextInfo.type,
+        mermaidLineNumber: lineNumber,
+      },
+    ];
+
     // 生成标题
-    const fileName = filePath ? path.basename(filePath, path.extname(filePath)) : 'Mermaid图表';
-    let title = '';
-    
+    const fileName = filePath ? path.basename(filePath, path.extname(filePath)) : "Mermaid图表";
+    let title = "";
+
     switch (contextInfo.type) {
-      case 'function':
+      case "function":
         title = `${fileName} - 函数 ${contextInfo.name}`;
         break;
-      case 'method':
+      case "method":
         title = `${fileName} - 方法 ${contextInfo.name}`;
         break;
-      case 'class':
+      case "class":
         title = `${fileName} - 类 ${contextInfo.name}`;
         break;
       default:
         title = `${fileName} - ${contextInfo.name}`;
         break;
     }
-    
+
     // 调用通用的showPopup方法
     this.showPopup(mermaidBlocks, title, locationInfo, filePath);
-    
-    vscode.window.showInformationMessage(`🎨 已显示 ${contextInfo.name} 的Mermaid图表`);
+
+    // vscode.window.showInformationMessage(`🎨 已显示 ${contextInfo.name} 的Mermaid图表`);
   }
 
   private async _jumpToFunction(lineNumber: number, fileName?: string) {
     try {
       let targetDocument: vscode.TextDocument | undefined;
-      
+
       if (fileName) {
         // 如果指定了文件名，先尝试在已打开的编辑器中找到
         const visibleEditors = vscode.window.visibleTextEditors;
-        const existingEditor = visibleEditors.find(editor => 
-          path.basename(editor.document.fileName) === fileName
-        );
-        
+        const existingEditor = visibleEditors.find((editor) => path.basename(editor.document.fileName) === fileName);
+
         if (existingEditor) {
           targetDocument = existingEditor.document;
         } else {
@@ -631,7 +601,7 @@ class PopupMermaidPreviewProvider {
               }
             }
           }
-          
+
           // 如果还是没找到，尝试递归搜索
           if (!targetDocument && workspaceFolders) {
             const foundFiles = await vscode.workspace.findFiles(`**/${fileName}`, null, 1);
@@ -647,22 +617,19 @@ class PopupMermaidPreviewProvider {
           targetDocument = activeEditor.document;
         }
       }
-      
+
       if (targetDocument && lineNumber > 0) {
         const position = new vscode.Position(lineNumber - 1, 0);
-        
+
         // 打开文档并跳转到指定行
         const editor = await vscode.window.showTextDocument(targetDocument, vscode.ViewColumn.One);
-        
+
         // 设置光标位置和选择
         editor.selection = new vscode.Selection(position, position);
-        
+
         // 滚动到指定行并居中显示
-        editor.revealRange(
-          new vscode.Range(position, position), 
-          vscode.TextEditorRevealType.InCenter
-        );
-        
+        editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+
         // vscode.window.showInformationMessage(`已跳转到 ${fileName || '当前文件'} 的第 ${lineNumber} 行`);
       } else {
         const message = fileName ? `无法找到文件 "${fileName}"` : "无法找到目标文件或行号无效";
@@ -675,8 +642,8 @@ class PopupMermaidPreviewProvider {
 
   private async _handleErrorReport(errorInfo: any) {
     try {
-      console.error('WebView错误报告:', errorInfo);
-      
+      console.error("WebView错误报告:", errorInfo);
+
       // 构建错误报告信息
       const errorReport = [
         `Mermaid WebView 错误报告`,
@@ -688,33 +655,27 @@ class PopupMermaidPreviewProvider {
         `已渲染图表数: ${errorInfo.renderedChartsCount}`,
         `总图表数: ${errorInfo.totalChartsCount}`,
         ``,
-        `请将此信息反馈给开发者以帮助改进扩展。`
-      ].join('\n');
-      
+        `请将此信息反馈给开发者以帮助改进扩展。`,
+      ].join("\n");
+
       // 显示错误信息
-      const action = await vscode.window.showErrorMessage(
-        '图表渲染出现问题，是否要查看详细错误信息？',
-        '查看详情',
-        '复制报告',
-        '忽略'
-      );
-      
-      if (action === '查看详情') {
+      const action = await vscode.window.showErrorMessage("图表渲染出现问题，是否要查看详细错误信息？", "查看详情", "复制报告", "忽略");
+
+      if (action === "查看详情") {
         // 在新文档中显示错误报告
         const doc = await vscode.workspace.openTextDocument({
           content: errorReport,
-          language: 'plaintext'
+          language: "plaintext",
         });
         await vscode.window.showTextDocument(doc);
-      } else if (action === '复制报告') {
+      } else if (action === "复制报告") {
         // 复制错误报告到剪贴板
         await vscode.env.clipboard.writeText(errorReport);
-        vscode.window.showInformationMessage('错误报告已复制到剪贴板');
+        vscode.window.showInformationMessage("错误报告已复制到剪贴板");
       }
-      
     } catch (error) {
-      console.error('处理错误报告时出错:', error);
-      vscode.window.showErrorMessage('处理错误报告时出错');
+      console.error("处理错误报告时出错:", error);
+      vscode.window.showErrorMessage("处理错误报告时出错");
     }
   }
 
@@ -739,7 +700,7 @@ class PopupMermaidPreviewProvider {
       }
 
       // 构建安全的默认文件名：文件名-索引-主题.svg
-      const safeFileName = fileName || 'mermaid-chart';
+      const safeFileName = fileName || "mermaid-chart";
       const theme = isDarkTheme ? "dark" : "light";
       const defaultFileName = `${safeFileName}-${index + 1}-${theme}.svg`;
       const defaultUri = vscode.Uri.file(path.join(defaultPath, defaultFileName));
@@ -767,7 +728,7 @@ class PopupMermaidPreviewProvider {
       }
 
       const isPng = uri.fsPath.toLowerCase().endsWith(".png");
-      
+
       if (isPng) {
         // 对于PNG，我们暂时保存为SVG并提示用户
         const svgPath = uri.fsPath.replace(".png", ".svg");
@@ -792,37 +753,32 @@ class PopupMermaidPreviewProvider {
 
       // 先隐藏侧边栏和面板以获得更好的全屏效果
       try {
-        await vscode.commands.executeCommand('workbench.action.closeSidebar');
+        await vscode.commands.executeCommand("workbench.action.closeSidebar");
       } catch (error) {
-        console.log('关闭侧边栏失败:', error);
+        console.log("关闭侧边栏失败:", error);
       }
-      
+
       try {
-        await vscode.commands.executeCommand('workbench.action.closePanel');
+        await vscode.commands.executeCommand("workbench.action.closePanel");
       } catch (error) {
-        console.log('关闭面板失败:', error);
+        console.log("关闭面板失败:", error);
       }
-      
+
       // 尝试关闭辅助栏（可能在某些版本中不存在）
       try {
-        await vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar');
+        await vscode.commands.executeCommand("workbench.action.closeAuxiliaryBar");
       } catch (error) {
-        console.log('关闭辅助栏命令不存在，跳过');
+        console.log("关闭辅助栏命令不存在，跳过");
       }
-      
+
       // 创建全屏webview面板，占据整个工作区
-      this._fullscreenPanel = vscode.window.createWebviewPanel(
-        "mermaidFullscreenOverlay",
-        `🎨 ${title} - 全屏预览`,
-        vscode.ViewColumn.Active,
-        {
-          enableScripts: true,
-          retainContextWhenHidden: false,
-          localResourceRoots: [this._extensionUri],
-          enableFindWidget: false,
-          enableCommandUris: false,
-        }
-      );
+      this._fullscreenPanel = vscode.window.createWebviewPanel("mermaidFullscreenOverlay", `🎨 ${title} - 全屏预览`, vscode.ViewColumn.Active, {
+        enableScripts: true,
+        retainContextWhenHidden: false,
+        localResourceRoots: [this._extensionUri],
+        enableFindWidget: false,
+        enableCommandUris: false,
+      });
 
       // 设置HTML内容 - 使用特殊的全屏样式
       this._fullscreenPanel.webview.html = this._getFullscreenOverlayHtml(svg, title, index);
@@ -835,9 +791,9 @@ class PopupMermaidPreviewProvider {
         this._fullscreenPanel = undefined;
         // 恢复侧边栏（如果之前是打开的）
         try {
-          vscode.commands.executeCommand('workbench.action.toggleSidebarVisibility');
+          vscode.commands.executeCommand("workbench.action.toggleSidebarVisibility");
         } catch (error) {
-          console.log('恢复侧边栏失败:', error);
+          console.log("恢复侧边栏失败:", error);
         }
       });
 
@@ -854,7 +810,6 @@ class PopupMermaidPreviewProvider {
             break;
         }
       });
-      
     } catch (error) {
       vscode.window.showErrorMessage(`全屏预览失败: ${error}`);
     }
@@ -862,26 +817,26 @@ class PopupMermaidPreviewProvider {
 
   private _getPopupHtml(mermaidBlocks: string[], functionName: string, locationInfo?: {name: string; lineNumber: number; type: string; mermaidLineNumber: number}[], filePath?: string): string {
     // 读取HTML模板文件
-    const templatePath = path.join(__dirname, 'mermaid-preview.html');
-    let htmlTemplate = fs.readFileSync(templatePath, 'utf8');
-    
+    const templatePath = path.join(__dirname, "mermaid-preview.html");
+    let htmlTemplate = fs.readFileSync(templatePath, "utf8");
+
     // 获取资源文件的webview URI
-    const mermaidLibPath = vscode.Uri.file(path.join(__dirname, 'libs', 'mermaid.min.js'));
+    const mermaidLibPath = vscode.Uri.file(path.join(__dirname, "libs", "mermaid.min.js"));
     const mermaidLibUri = this._panel?.webview.asWebviewUri(mermaidLibPath);
-    
-    const webviewScriptPath = vscode.Uri.file(path.join(__dirname, 'webview-script.js'));
+
+    const webviewScriptPath = vscode.Uri.file(path.join(__dirname, "webview-script.js"));
     const webviewScriptUri = this._panel?.webview.asWebviewUri(webviewScriptPath);
-    
-    const webviewStylesPath = vscode.Uri.file(path.join(__dirname, 'webview-styles.css'));
+
+    const webviewStylesPath = vscode.Uri.file(path.join(__dirname, "webview-styles.css"));
     const webviewStylesUri = this._panel?.webview.asWebviewUri(webviewStylesPath);
-    
+
     // 直接使用传入的functionName作为fileName，因为调用方已经正确计算了文件名
     // functionName 实际上就是从 path.basename(filePath, path.extname(filePath)) 得来的
-    const fileName = functionName || 'mermaid-chart';
-    
+    const fileName = functionName || "mermaid-chart";
+
     // 先注入文件名和位置信息到HTML中，供JavaScript使用（必须在URI替换之前）
-    console.log('注入到webview的fileName:', fileName);
-    console.log('注入到webview的locationInfo:', locationInfo);
+    console.log("注入到webview的fileName:", fileName);
+    console.log("注入到webview的locationInfo:", locationInfo);
     htmlTemplate = htmlTemplate.replace(
       '<script src="./webview-script.js"></script>',
       `<script>
@@ -889,19 +844,17 @@ class PopupMermaidPreviewProvider {
         window.locationInfo = ${JSON.stringify(locationInfo || [])};
       </script>\n    <script src="./webview-script.js"></script>`
     );
-    
+
     // 然后替换模板变量和URI
     htmlTemplate = htmlTemplate
-      .replace('{{FUNCTION_NAME}}', functionName)
-      .replace('{{MERMAID_CARDS}}', this._generateMermaidCards(mermaidBlocks, locationInfo, filePath))
-      .replace('./libs/mermaid.min.js', mermaidLibUri?.toString() || './libs/mermaid.min.js')
-      .replace('./webview-script.js', webviewScriptUri?.toString() || './webview-script.js')
-      .replace('./webview-styles.css', webviewStylesUri?.toString() || './webview-styles.css');
-    
+      .replace("{{FUNCTION_NAME}}", functionName)
+      .replace("{{MERMAID_CARDS}}", this._generateMermaidCards(mermaidBlocks, locationInfo, filePath))
+      .replace("./libs/mermaid.min.js", mermaidLibUri?.toString() || "./libs/mermaid.min.js")
+      .replace("./webview-script.js", webviewScriptUri?.toString() || "./webview-script.js")
+      .replace("./webview-styles.css", webviewStylesUri?.toString() || "./webview-styles.css");
+
     return htmlTemplate;
   }
-  
-
 
   private _generateMermaidCards(mermaidBlocks: string[], locationInfo?: {name: string; lineNumber: number; type: string; mermaidLineNumber: number}[], filePath?: string): string {
     if (mermaidBlocks.length === 0) {
@@ -924,28 +877,28 @@ class PopupMermaidPreviewProvider {
         if (locationData && locationData.name && locationData.name !== "定位") {
           title = locationData.name;
         }
-        
+
         // 根据类型选择图标和显示文本
         let icon = "📍";
         let displayText = "定位";
         let targetLineNumber = 0;
-        
+
         if (locationData) {
           targetLineNumber = locationData.lineNumber;
           switch (locationData.type) {
-            case 'function':
+            case "function":
               icon = "🔧";
               displayText = `Func: ${locationData.name}:${locationData.lineNumber}`;
               break;
-            case 'method':
+            case "method":
               icon = "⚙️";
               displayText = `Meth: ${locationData.name}:${locationData.lineNumber}`;
               break;
-            case 'class':
+            case "class":
               icon = "🏗️";
               displayText = `Class: ${locationData.name}:${locationData.lineNumber}`;
               break;
-            case 'location':
+            case "location":
               icon = "📍";
               displayText = locationData.name;
               targetLineNumber = locationData.mermaidLineNumber; // 跳转到mermaid代码块位置
@@ -956,15 +909,19 @@ class PopupMermaidPreviewProvider {
               break;
           }
         }
-        
+
         return `
           <div class="mermaid-card" data-index="${index}">
             <div class="card-header" onclick="toggleCard(this)">
               <div class="card-title">
                 <span class="collapse-indicator">▼</span>
-                <div class="chart-title-text ${locationData ? 'chart-title-with-function' : 'chart-title-basic'}">
+                <div class="chart-title-text ${locationData ? "chart-title-with-function" : "chart-title-basic"}">
                   <span>📊 ${title}</span>
-                  ${locationData ? ` - <span class="location-info" onclick="event.stopPropagation(); jumpToFunction(${targetLineNumber}, '${path.basename(filePath || '')}')" title="点击跳转到源码位置">${icon} ${displayText}</span>` : ""}
+                  ${
+                    locationData
+                      ? ` - <span class="location-info" onclick="event.stopPropagation(); jumpToFunction(${targetLineNumber}, '${path.basename(filePath || "")}')" title="点击跳转到源码位置">${icon} ${displayText}</span>`
+                      : ""
+                  }
                 </div>
               </div>
               <div class="card-actions">
@@ -974,7 +931,7 @@ class PopupMermaidPreviewProvider {
                           <circle cx="12" cy="12" r="3"/>
                       </svg>
                   </button>
-                  <button class="action-btn" onclick="event.stopPropagation(); copyCode(\`${code.replace(/`/g, '\\`').replace(/\n/g, '\\n').replace(/"/g, '&quot;')}\`)" title="复制代码">
+                  <button class="action-btn" onclick="event.stopPropagation(); copyCode(\`${code.replace(/`/g, "\\`").replace(/\n/g, "\\n").replace(/"/g, "&quot;")}\`)" title="复制代码">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                           <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
                           <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
@@ -1498,13 +1455,13 @@ class PopupMermaidPreviewProvider {
 
 export function activate(context: vscode.ExtensionContext) {
   console.log("Render Mermaid in Function Doc 扩展已激活");
-  
+
   // 创建弹出式预览提供者
   const popupProvider = PopupMermaidPreviewProvider.getInstance(context.extensionUri);
-  
+
   // 创建CodeLens提供者
   const codeLensProvider = new MermaidCodeLensProvider();
-  
+
   // 注册提取所有Mermaid图表命令
   let extractAllPopupCommand = vscode.commands.registerCommand("mermaid-render-anywhere.extractAllMermaidPopup", async () => {
     const editor = vscode.window.activeTextEditor;
@@ -1514,7 +1471,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     const {mermaidBlocks, locationInfo} = extractAllMermaidFromFile(editor.document);
-    
+
     if (mermaidBlocks.length === 0) {
       vscode.window.showWarningMessage("当前文件中没有找到Mermaid图表");
       return;
@@ -1523,59 +1480,47 @@ export function activate(context: vscode.ExtensionContext) {
     // 显示弹出式预览
     const fileName = path.basename(editor.document.fileName, path.extname(editor.document.fileName));
     const filePath = editor.document.fileName;
-    console.log('命令调用 - fileName:', fileName, 'filePath:', filePath);
+    console.log("命令调用 - fileName:", fileName, "filePath:", filePath);
     // 使用fileName作为functionName在标题中显示，同时传递完整的filePath用于导出文件名
     popupProvider.showPopup(mermaidBlocks, fileName, locationInfo, filePath);
-    
+
     vscode.window.showInformationMessage(`🎨 已提取并显示 ${mermaidBlocks.length} 个Mermaid图表`);
   });
 
   // 注册单个Mermaid图表预览命令
-  let previewSingleCommand = vscode.commands.registerCommand("mermaid-render-anywhere.previewSingleMermaid", 
-    (mermaidCode: string, lineNumber: number, contextInfo: {name: string; type: string}, filePath?: string) => {
-      console.log('单图表预览命令调用 - contextInfo:', contextInfo, 'lineNumber:', lineNumber);
-      
-      // 清理mermaid代码（移除注释符号）
-      const cleanedCode = cleanCommentSymbols(mermaidCode);
-      
-      if (!cleanedCode.trim()) {
-        vscode.window.showWarningMessage("Mermaid代码为空");
-        return;
-      }
-      
-      // 显示单个图表预览
-      popupProvider.showSingleMermaid(cleanedCode, contextInfo, lineNumber, filePath);
+  let previewSingleCommand = vscode.commands.registerCommand("mermaid-render-anywhere.previewSingleMermaid", (mermaidCode: string, lineNumber: number, contextInfo: {name: string; type: string}, filePath?: string) => {
+    console.log("单图表预览命令调用 - contextInfo:", contextInfo, "lineNumber:", lineNumber);
+
+    // 清理mermaid代码（移除注释符号）
+    const cleanedCode = cleanCommentSymbols(mermaidCode);
+
+    if (!cleanedCode.trim()) {
+      vscode.window.showWarningMessage("Mermaid代码为空");
+      return;
     }
-  );
+
+    // 显示单个图表预览
+    popupProvider.showSingleMermaid(cleanedCode, contextInfo, lineNumber, filePath);
+  });
 
   // 注册测试命令
   let testCommand = vscode.commands.registerCommand("mermaid-render-anywhere.helloWorld", () => {
     vscode.window.showInformationMessage("Hello World from Render Mermaid in Function Doc!");
   });
 
-  // 注册CodeLens提供者 - 支持多种语言
-  const supportedLanguages = ['python', 'javascript', 'typescript', 'typescriptreact', 'javascriptreact', 'java', 'go'];
-  const codeLensDisposables = supportedLanguages.map(language => 
-    vscode.languages.registerCodeLensProvider({ language: language }, codeLensProvider)
-  );
+  // 注册CodeLens提供者 - 支持所有文件类型
+  const codeLensDisposable = vscode.languages.registerCodeLensProvider("*", codeLensProvider);
 
   // 监听配置变化，刷新CodeLens
-  const configChangeDisposable = vscode.workspace.onDidChangeConfiguration(event => {
-    if (event.affectsConfiguration('mermaidRenderAnywhere.enableDisplayInlinedButton')) {
+  const configChangeDisposable = vscode.workspace.onDidChangeConfiguration((event) => {
+    if (event.affectsConfiguration("mermaidRenderAnywhere.enableDisplayInlinedButton")) {
       codeLensProvider.refresh();
     }
   });
 
-  context.subscriptions.push(
-    extractAllPopupCommand, 
-    previewSingleCommand,
-    testCommand,
-    configChangeDisposable,
-    ...codeLensDisposables
-  );
+  context.subscriptions.push(extractAllPopupCommand, previewSingleCommand, testCommand, configChangeDisposable, codeLensDisposable);
 }
 
 export function deactivate() {
   console.log("Render Mermaid in Function Doc 扩展已停用");
-} 
-
+}
