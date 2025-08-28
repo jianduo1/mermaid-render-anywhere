@@ -2,6 +2,8 @@ import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
+import { SidebarMermaidProvider } from "./providers/SidebarMermaidProvider";
+import { TabMermaidProvider } from "./providers/TabMermaidProvider";
 
 // 清理注释符号的辅助函数
 function cleanCommentSymbols(code: string): string {
@@ -319,14 +321,20 @@ class MermaidCodeLensProvider implements vscode.CodeLensProvider {
         type: location.type,
       };
 
-      // 创建CodeLens
-      const codeLens = new vscode.CodeLens(range, {
-        title: "🎨 预览图表",
-        command: "mermaid-render-anywhere.previewSingleMermaid",
+      // 创建两个CodeLens按钮：侧栏预览和页签预览
+      const sidebarCodeLens = new vscode.CodeLens(range, {
+        title: "📋 侧栏预览",
+        command: "mermaid-render-anywhere.previewInSidebar",
         arguments: [mermaidCode, location.lineNumber, contextInfo, document.fileName],
       });
 
-      codeLenses.push(codeLens);
+      const tabCodeLens = new vscode.CodeLens(range, {
+        title: "📑 页签预览",
+        command: "mermaid-render-anywhere.previewInTab",
+        arguments: [mermaidCode, location.lineNumber, contextInfo, document.fileName],
+      });
+
+      codeLenses.push(sidebarCodeLens, tabCodeLens);
     });
 
     return codeLenses;
@@ -989,48 +997,27 @@ class PopupMermaidPreviewProvider {
     return htmlTemplate;
   }
 
-  private _getFullscreenHtml(svg: string, title: string, index: number): string {
-    // 读取HTML模板文件
-    const templatePath = path.join(__dirname, "fullscreen.html");
-    let htmlTemplate = fs.readFileSync(templatePath, "utf8");
-
-    // 获取资源文件的webview URI
-    const fullscreenScriptPath = vscode.Uri.file(path.join(__dirname, "fullscreen.js"));
-    const fullscreenScriptUri = this._fullscreenPanel?.webview.asWebviewUri(fullscreenScriptPath);
-    
-    const fullscreenStylesPath = vscode.Uri.file(path.join(__dirname, "fullscreen.css"));
-    const fullscreenStylesUri = this._fullscreenPanel?.webview.asWebviewUri(fullscreenStylesPath);
-
-    // 注入变量到HTML中，供JavaScript使用
-    htmlTemplate = htmlTemplate.replace(
-      '<script src="./fullscreen.js"></script>',
-      `<script>
-        window.chartIndex = ${index};
-        window.chartTitle = '${title}';
-      </script>\n    <script src="./fullscreen.js"></script>`
-    );
-
-    // 替换模板变量和URI
-    htmlTemplate = htmlTemplate
-      .replace("{{TITLE}}", title)
-      .replace("{{SVG_CONTENT}}", svg)
-      .replace("./fullscreen.js", fullscreenScriptUri?.toString() || "./fullscreen.js")
-      .replace("./fullscreen.css", fullscreenStylesUri?.toString() || "./fullscreen.css");
-
-    return htmlTemplate;
-  }
 }
 
 export function activate(context: vscode.ExtensionContext) {
   console.log("Render Mermaid in Function Doc 扩展已激活");
 
-  // 创建弹出式预览提供者
+  // 创建新的预览提供者
+  const sidebarProvider = new SidebarMermaidProvider(context.extensionUri);
+  const tabProvider = TabMermaidProvider.getInstance(context.extensionUri);
+
+  // 保留原有的弹出式预览提供者（用于兼容现有的文件预览命令）
   const popupProvider = PopupMermaidPreviewProvider.getInstance(context.extensionUri);
 
   // 创建CodeLens提供者
   const codeLensProvider = new MermaidCodeLensProvider();
 
-  // 注册提取所有Mermaid图表命令
+  // 注册侧栏视图提供者
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(SidebarMermaidProvider.viewType, sidebarProvider)
+  );
+
+  // 注册提取所有Mermaid图表命令（文件预览模式）
   let extractAllPopupCommand = vscode.commands.registerCommand("mermaid-render-anywhere.extractAllMermaidPopup", async () => {
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
@@ -1055,7 +1042,64 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.window.showInformationMessage(`🎨 已提取并显示 ${mermaidBlocks.length} 个Mermaid图表`);
   });
 
-  // 注册单个Mermaid图表预览命令
+  // 注册侧栏预览命令
+  let previewInSidebarCommand = vscode.commands.registerCommand("mermaid-render-anywhere.previewInSidebar", (mermaidCode: string, lineNumber: number, contextInfo: {name: string; type: string}, filePath?: string) => {
+    console.log("侧栏预览命令调用 - contextInfo:", contextInfo, "lineNumber:", lineNumber);
+
+    // 清理mermaid代码（移除注释符号）
+    const cleanedCode = cleanCommentSymbols(mermaidCode);
+
+    if (!cleanedCode.trim()) {
+      vscode.window.showWarningMessage("Mermaid代码为空");
+      return;
+    }
+
+    // 显示侧栏预览
+    sidebarProvider.showSingleMermaid(cleanedCode, contextInfo, lineNumber, filePath);
+    // vscode.window.showInformationMessage(`📋 已在侧栏显示 ${contextInfo.name} 的Mermaid图表`);
+  });
+
+  // 注册页签预览命令
+  let previewInTabCommand = vscode.commands.registerCommand("mermaid-render-anywhere.previewInTab", (mermaidCode: string, lineNumber: number, contextInfo: {name: string; type: string}, filePath?: string) => {
+    console.log("页签预览命令调用 - contextInfo:", contextInfo, "lineNumber:", lineNumber);
+
+    // 清理mermaid代码（移除注释符号）
+    const cleanedCode = cleanCommentSymbols(mermaidCode);
+
+    if (!cleanedCode.trim()) {
+      vscode.window.showWarningMessage("Mermaid代码为空");
+      return;
+    }
+
+    // 显示页签预览
+    tabProvider.showSingleMermaid(cleanedCode, contextInfo, lineNumber, filePath);
+    // vscode.window.showInformationMessage(`📑 已在页签显示 ${contextInfo.name} 的Mermaid图表`);
+  });
+
+  // 注册侧栏显示命令（用于右键菜单和快捷键）
+  let showSidebarCommand = vscode.commands.registerCommand("mermaid-render-anywhere.showSidebar", async () => {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+      vscode.window.showWarningMessage("请先打开一个文件");
+      return;
+    }
+
+    const {mermaidBlocks, locationInfo} = extractAllMermaidFromFile(editor.document);
+
+    if (mermaidBlocks.length === 0) {
+      vscode.window.showWarningMessage("当前文件中没有找到Mermaid图表");
+      return;
+    }
+
+    // 显示侧栏预览
+    const fileName = path.basename(editor.document.fileName, path.extname(editor.document.fileName));
+    const filePath = editor.document.fileName;
+    sidebarProvider.showMermaid(mermaidBlocks, fileName, locationInfo, filePath);
+
+    // vscode.window.showInformationMessage(`📋 已在侧栏显示 ${mermaidBlocks.length} 个Mermaid图表`);
+  });
+
+  // 保留原有的单个Mermaid图表预览命令（向后兼容）
   let previewSingleCommand = vscode.commands.registerCommand("mermaid-render-anywhere.previewSingleMermaid", (mermaidCode: string, lineNumber: number, contextInfo: {name: string; type: string}, filePath?: string) => {
     console.log("单图表预览命令调用 - contextInfo:", contextInfo, "lineNumber:", lineNumber);
 
@@ -1086,7 +1130,16 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
-  context.subscriptions.push(extractAllPopupCommand, previewSingleCommand, testCommand, configChangeDisposable, codeLensDisposable);
+  context.subscriptions.push(
+    extractAllPopupCommand, 
+    previewInSidebarCommand,
+    previewInTabCommand,
+    showSidebarCommand,
+    previewSingleCommand, 
+    testCommand, 
+    configChangeDisposable, 
+    codeLensDisposable
+  );
 }
 
 export function deactivate() {

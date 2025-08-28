@@ -17,11 +17,6 @@
  *     L["应用范围"] --> M["卡片预览"]
  *     L --> N["大图预览"]
  *     
- *     style A fill:#e1f5fe
- *     style B fill:#fff3e0
- *     style G fill:#f3e5f5
- *     style H fill:#e8f5e8
- *     style I fill:#ffebee
  * ```
  */
 class UserAuth {

@@ -18,12 +18,27 @@
     "commands": [
       {
         "command": "mermaid-render-anywhere.extractAllMermaidPopup",
-        "title": "提取所有Mermaid图表",
+        "title": "页签预览Mermaid图表",
         "category": "Mermaid"
       },
       {
         "command": "mermaid-render-anywhere.previewSingleMermaid",
         "title": "预览单个Mermaid图表",
+        "category": "Mermaid"
+      },
+      {
+        "command": "mermaid-render-anywhere.previewInSidebar",
+        "title": "侧栏预览Mermaid图表",
+        "category": "Mermaid"
+      },
+      {
+        "command": "mermaid-render-anywhere.previewInTab",
+        "title": "页签预览Mermaid图表",
+        "category": "Mermaid"
+      },
+      {
+        "command": "mermaid-render-anywhere.showSidebar",
+        "title": "侧栏预览Mermaid图表",
         "category": "Mermaid"
       },
       {
@@ -37,6 +52,11 @@
           "command": "mermaid-render-anywhere.extractAllMermaidPopup",
           "when": "true",
           "group": "navigation"
+        },
+        {
+          "command": "mermaid-render-anywhere.showSidebar",
+          "when": "true",
+          "group": "navigation"
         }
       ]
     },
@@ -45,8 +65,31 @@
         "command": "mermaid-render-anywhere.extractAllMermaidPopup",
         "key": "cmd+r",
         "when": "true"
+      },
+      {
+        "command": "mermaid-render-anywhere.showSidebar",
+        "key": "cmd+shift+m",
+        "when": "true"
       }
     ],
+    "views": {
+      "mermaidContainer": [
+        {
+          "id": "mermaidSidebar",
+          "name": "Mermaid 图表预览",
+          "type": "webview"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "mermaidContainer",
+          "title": "Mermaid",
+          "icon": "$(graph)"
+        }
+      ]
+    },
     "configuration": {
       "title": "Mermaid Render Anywhere",
       "properties": {
