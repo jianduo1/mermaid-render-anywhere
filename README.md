@@ -115,7 +115,8 @@
 
 | 配置项 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
-| `mermaidRenderAnywhere.enableDisplayInlinedButton` | boolean | `true` | 启用/禁用Mermaid代码块上方的内联预览按钮 |
+| `mermaidRenderAnywhere.displayButton.sidebarAndTab` | boolean | `true` | 控制侧栏预览和页签预览按钮显示 |
+| `mermaidRenderAnywhere.displayButton.saveAsPng` | boolean | `true` | 控制保存PNG按钮显示，保存为PNG并在第二栏打开 |
 
 ### 配置示例
 
@@ -123,11 +124,14 @@
 
 ```json
 {
-  "mermaidRenderAnywhere.enableDisplayInlinedButton": false
+  "mermaidRenderAnywhere.displayButton.sidebarAndTab": true,
+  "mermaidRenderAnywhere.displayButton.saveAsPng": true
 }
 ```
 
-> 💡 **提示**: 如果你只想使用文件预览模式，可以将此选项设为 `false` 来隐藏内联预览按钮。
+> 💡 **提示**: 
+> - 如果你只想使用预览功能，可以将 `saveAsPng` 设为 `false` 来隐藏保存PNG按钮
+> - 保存PNG功能需要全局安装 `@mermaid-js/mermaid-cli`：`npm install -g @mermaid-js/mermaid-cli`
 
 ## 🤝 贡献
 

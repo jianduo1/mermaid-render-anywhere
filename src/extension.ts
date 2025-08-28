@@ -2,6 +2,8 @@ import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
+import { exec } from "child_process";
+import { promisify } from "util";
 import { SidebarMermaidProvider } from "./providers/SidebarMermaidProvider";
 import { TabMermaidProvider } from "./providers/TabMermaidProvider";
 
@@ -285,11 +287,13 @@ class MermaidCodeLensProvider implements vscode.CodeLensProvider {
   constructor() {}
 
   public provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.CodeLens[] | Thenable<vscode.CodeLens[]> {
-    // 检查是否启用了内联预览按钮功能
+    // 检查按钮显示配置
     const config = vscode.workspace.getConfiguration("mermaidRenderAnywhere");
-    const enableDisplayInlinedButton = config.get<boolean>("enableDisplayInlinedButton", true);
+    const showSidebarAndTab = config.get<boolean>("displayButton.sidebarAndTab", true);
+    const showSaveAsPng = config.get<boolean>("displayButton.saveAsPng", true);
 
-    if (!enableDisplayInlinedButton) {
+    // 如果所有按钮都被禁用，则不显示任何CodeLens
+    if (!showSidebarAndTab && !showSaveAsPng) {
       return [];
     }
 
@@ -321,20 +325,32 @@ class MermaidCodeLensProvider implements vscode.CodeLensProvider {
         type: location.type,
       };
 
-      // 创建两个CodeLens按钮：侧栏预览和页签预览
-      const sidebarCodeLens = new vscode.CodeLens(range, {
-        title: "📋 侧栏预览",
-        command: "mermaid-render-anywhere.previewInSidebar",
-        arguments: [mermaidCode, location.lineNumber, contextInfo, document.fileName],
-      });
+      // 根据配置创建CodeLens按钮
+      if (showSidebarAndTab) {
+        const sidebarCodeLens = new vscode.CodeLens(range, {
+          title: "📋 侧栏预览",
+          command: "mermaid-render-anywhere.previewInSidebar",
+          arguments: [mermaidCode, location.lineNumber, contextInfo, document.fileName],
+        });
 
-      const tabCodeLens = new vscode.CodeLens(range, {
-        title: "📑 页签预览",
-        command: "mermaid-render-anywhere.previewInTab",
-        arguments: [mermaidCode, location.lineNumber, contextInfo, document.fileName],
-      });
+        const tabCodeLens = new vscode.CodeLens(range, {
+          title: "📑 页签预览",
+          command: "mermaid-render-anywhere.previewInTab",
+          arguments: [mermaidCode, location.lineNumber, contextInfo, document.fileName],
+        });
 
-      codeLenses.push(sidebarCodeLens, tabCodeLens);
+        codeLenses.push(sidebarCodeLens, tabCodeLens);
+      }
+
+      if (showSaveAsPng) {
+        const saveAsPngCodeLens = new vscode.CodeLens(range, {
+          title: "💾 保存PNG",
+          command: "mermaid-render-anywhere.saveAsPng",
+          arguments: [mermaidCode, location.lineNumber, contextInfo, document.fileName],
+        });
+
+        codeLenses.push(saveAsPngCodeLens);
+      }
     });
 
     return codeLenses;
@@ -1120,12 +1136,97 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.window.showInformationMessage("Hello World from Render Mermaid in Function Doc!");
   });
 
+  // 注册保存PNG命令
+  let saveAsPngCommand = vscode.commands.registerCommand("mermaid-render-anywhere.saveAsPng", async (mermaidCode: string, lineNumber: number, contextInfo: {name: string; type: string}, filePath?: string) => {
+    try {
+      // 清理Mermaid代码
+      const cleanedCode = cleanCommentSymbols(mermaidCode);
+      
+      // 检查是否安装了mermaid-cli
+      const execAsync = promisify(exec);
+      
+      try {
+        await execAsync('mmdc --version');
+      } catch (error) {
+        const result = await vscode.window.showErrorMessage(
+          '未检测到 mermaid-cli 工具。请先全局安装：npm install -g @mermaid-js/mermaid-cli',
+          '打开安装说明',
+          '取消'
+        );
+        
+        if (result === '打开安装说明') {
+          vscode.env.openExternal(vscode.Uri.parse('https://github.com/mermaid-js/mermaid-cli'));
+        }
+        return;
+      }
+      
+      // 获取当前文件的目录
+      let outputDir: string;
+      if (filePath) {
+        outputDir = path.dirname(filePath);
+      } else if (vscode.window.activeTextEditor) {
+        outputDir = path.dirname(vscode.window.activeTextEditor.document.fileName);
+      } else {
+        outputDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || os.tmpdir();
+      }
+      
+      // 生成文件名
+      let currentFileName = 'untitled';
+      if (filePath) {
+        currentFileName = path.basename(filePath, path.extname(filePath));
+      } else if (vscode.window.activeTextEditor) {
+        currentFileName = path.basename(vscode.window.activeTextEditor.document.fileName, path.extname(vscode.window.activeTextEditor.document.fileName));
+      }
+      
+      // 获取当前mermaid块在文件中的索引
+      const document = vscode.window.activeTextEditor?.document;
+      let blockIndex = 1;
+      if (document) {
+        const {mermaidBlocks} = extractAllMermaidFromFile(document);
+        blockIndex = mermaidBlocks.findIndex(block => cleanCommentSymbols(block) === cleanedCode) + 1;
+        if (blockIndex <= 0) blockIndex = 1;
+      }
+      
+      // 生成文件名：文件名-索引-函数名 或 文件名-索引
+      let baseName: string;
+      if (contextInfo.name && contextInfo.name !== 'unknown') {
+        baseName = `${currentFileName}-${blockIndex}-${contextInfo.name}`;
+      } else {
+        baseName = `${currentFileName}-${blockIndex}`;
+      }
+      
+      const mmdPath = path.join(outputDir, `${baseName}.mmd`);
+      const pngPath = path.join(outputDir, `${baseName}.png`);
+      
+      // 写入临时mermaid文件
+      fs.writeFileSync(mmdPath, cleanedCode);
+      
+      // 使用mermaid-cli生成PNG
+      vscode.window.showInformationMessage('正在生成PNG图片...');
+      
+      await execAsync(`mmdc -i "${mmdPath}" -o "${pngPath}" -b white -s 2`);
+      
+      // 删除临时mermaid文件
+      fs.unlinkSync(mmdPath);
+      
+      // 在第二栏打开PNG文件
+      const pngUri = vscode.Uri.file(pngPath);
+      await vscode.commands.executeCommand('vscode.open', pngUri, vscode.ViewColumn.Two);
+      
+      vscode.window.showInformationMessage(`PNG图片已保存并打开: ${path.basename(pngPath)}`);
+      
+    } catch (error) {
+      vscode.window.showErrorMessage(`保存PNG失败: ${error}`);
+    }
+  });
+
   // 注册CodeLens提供者 - 支持所有文件类型
   const codeLensDisposable = vscode.languages.registerCodeLensProvider("*", codeLensProvider);
 
   // 监听配置变化，刷新CodeLens
   const configChangeDisposable = vscode.workspace.onDidChangeConfiguration((event) => {
-    if (event.affectsConfiguration("mermaidRenderAnywhere.enableDisplayInlinedButton")) {
+    if (event.affectsConfiguration("mermaidRenderAnywhere.displayButton.sidebarAndTab") || 
+        event.affectsConfiguration("mermaidRenderAnywhere.displayButton.saveAsPng")) {
       codeLensProvider.refresh();
     }
   });
@@ -1136,7 +1237,8 @@ export function activate(context: vscode.ExtensionContext) {
     previewInTabCommand,
     showSidebarCommand,
     previewSingleCommand, 
-    testCommand, 
+    testCommand,
+    saveAsPngCommand,
     configChangeDisposable, 
     codeLensDisposable
   );
@@ -1145,4 +1247,6 @@ export function activate(context: vscode.ExtensionContext) {
 export function deactivate() {
   console.log("Render Mermaid in Function Doc 扩展已停用");
 }
+
+
 

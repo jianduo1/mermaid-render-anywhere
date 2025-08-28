@@ -2,7 +2,7 @@
   "name": "mermaid-render-anywhere",
   "displayName": "Mermaid Render Anywhere",
   "description": "在Python函数文档中渲染Mermaid工作流预览",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "icon": "icon.jpg",
   "engines": {
     "vscode": "^1.74.0"
@@ -44,6 +44,11 @@
       {
         "command": "mermaid-render-anywhere.helloWorld",
         "title": "Hello World"
+      },
+      {
+        "command": "mermaid-render-anywhere.saveAsPng",
+        "title": "保存为PNG图片",
+        "category": "Mermaid"
       }
     ],
     "menus": {
@@ -93,10 +98,15 @@
     "configuration": {
       "title": "Mermaid Render Anywhere",
       "properties": {
-        "mermaidRenderAnywhere.enableDisplayInlinedButton": {
+        "mermaidRenderAnywhere.displayButton.sidebarAndTab": {
           "type": "boolean",
           "default": true,
-          "description": "启用/禁用Mermaid代码块上方的内联预览按钮"
+          "description": "控制侧栏预览和页签预览按钮显示"
+        },
+        "mermaidRenderAnywhere.displayButton.saveAsPng": {
+          "type": "boolean",
+          "default": true,
+          "description": "控制保存图片按钮显示，保存为PNG并在第二栏打开"
         }
       }
     }
@@ -104,7 +114,8 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./ && cp src/webview.html out/ && cp src/webview.js out/ && cp src/webview.css out/ && cp src/fullscreen.html out/ && cp src/fullscreen.js out/ && cp src/fullscreen.css out/ && cp -r src/libs out/",
-    "watch": "tsc -watch -p ./ && cp src/webview.html out/ && cp src/webview.js out/ && cp src/webview.css out/ && cp src/fullscreen.html out/ && cp src/fullscreen.js out/ && cp src/fullscreen.css out/ && cp -r src/libs out/"
+    "watch": "tsc -watch -p ./ && cp src/webview.html out/ && cp src/webview.js out/ && cp src/webview.css out/ && cp src/fullscreen.html out/ && cp src/fullscreen.js out/ && cp src/fullscreen.css out/ && cp -r src/libs out/",
+    "pkg": "vsce package -o release/"
   },
   "devDependencies": {
     "@types/node": "16.x",
