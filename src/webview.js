@@ -1282,7 +1282,7 @@ class UIController {
         // 如果有位置信息，根据图表索引获取对应的函数/类名
         if (window.locationInfo && window.locationInfo[index]) {
             const locationData = window.locationInfo[index];
-            if (locationData && locationData.name) {
+            if (locationData && locationData.name && locationData.name !== '定位') {
                 // 根据类型构建不同的前缀
                 let prefix = '';
                 switch (locationData.type) {

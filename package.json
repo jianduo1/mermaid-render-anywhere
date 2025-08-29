@@ -2,7 +2,7 @@
   "name": "mermaid-render-anywhere",
   "displayName": "Mermaid Render Anywhere",
   "description": "在Python函数文档中渲染Mermaid工作流预览",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "icon": "icon.jpg",
   "engines": {
     "vscode": "^1.74.0"

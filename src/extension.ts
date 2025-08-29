@@ -1189,7 +1189,7 @@ export function activate(context: vscode.ExtensionContext) {
       
       // 生成文件名：文件名-索引-函数名 或 文件名-索引
       let baseName: string;
-      if (contextInfo.name && contextInfo.name !== 'unknown') {
+      if (contextInfo.name && contextInfo.name !== 'unknown' && contextInfo.name !== '定位') {
         baseName = `${currentFileName}-${blockIndex}-${contextInfo.name}`;
       } else {
         baseName = `${currentFileName}-${blockIndex}`;
