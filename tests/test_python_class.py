@@ -3,15 +3,18 @@ class DataProcessor:
     数据处理器类
     
     ```mermaid
+    ---
+    title: 数据处理
+    ---
     classDiagram
-        class DataProcessor {
-            +data: list
-            +processed_data: list
-            +load_data(source: str): bool
-            +clean_data(): void
-            +transform_data(): void
-            +save_results(output: str): bool
-        }
+    class DataProcessor {
+    +data: list
+    +processed_data: list
+    +load_data(source: str): bool
+    +clean_data(): void
+    +transform_data(): void
+    +save_results(output: str): bool
+    }
     ```
     """
     

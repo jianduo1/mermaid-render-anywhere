@@ -2,7 +2,7 @@
   "name": "mermaid-render-anywhere",
   "displayName": "Mermaid Render Anywhere",
   "description": "在Python函数文档中渲染Mermaid工作流预览",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "icon": "icon.jpg",
   "engines": {
     "vscode": "^1.74.0"
@@ -106,8 +106,23 @@
         "mermaidRenderAnywhere.displayButton.saveAsPng": {
           "type": "boolean",
           "default": true,
-          "description": "控制保存图片按钮显示，保存为PNG并在第二栏打开"
-        }
+          "description": "控制预览PNG按钮显示，生成PNG图片并在第二栏打开"
+        },
+                 "mermaidRenderAnywhere.titleEditor.mode": {
+           "type": "string",
+           "enum": ["disabled", "dialog"],
+           "enumDescriptions": [
+             "关闭 - 直接导出，不获取标题",
+             "弹框 - 使用弹框输入标题"
+           ],
+           "default": "disabled",
+           "description": "标题编辑模式"
+         },
+         "mermaidRenderAnywhere.pngOutputPath": {
+           "type": "string",
+           "default": "",
+           "description": "PNG文件输出路径（支持绝对路径或相对于工作区根目录的路径，为空时在当前文件所在目录生成）"
+         }
       }
     }
   },

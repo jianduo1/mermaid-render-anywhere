@@ -1141,6 +1141,7 @@ class UIController {
         this.renderer = renderer;
         this.allChartsCollapsed = false;
         this.previewManager = new PreviewManager(renderer.scrollLockManager);
+        this.titleManager = new TitleManager(this);
     }
 
     /**
@@ -1149,6 +1150,7 @@ class UIController {
     initialize() {
         this.initializeEventListeners();
         this.previewManager.initialize();
+        this.titleManager.initialize();
     }
 
     /**
@@ -1261,10 +1263,10 @@ class UIController {
     }
 
     /**
-     * 导出图片
+     * 导出图片 - 新版本支持标题检测和管理
      * @param {number} index - 图表索引
      */
-    exportImage(index) {
+    async exportImage(index) {
         const card = document.querySelector(`.mermaid-card[data-index="${index}"]`);
         if (!card) return;
         
@@ -1274,43 +1276,71 @@ class UIController {
             return;
         }
         
-        const svgData = new XMLSerializer().serializeToString(svg);
+        // 获取当前mermaid代码
+        const codeElement = card.querySelector('.mermaid-code');
+        const currentCode = codeElement?.textContent || '';
         
-        // 构建包含函数/类名的文件名
-        let fileName = window.currentFileName || 'mermaid-chart';
+        // 检查是否有title属性
+        const existingTitle = FrontmatterParser.extractTitle(currentCode);
         
-        // 如果有位置信息，根据图表索引获取对应的函数/类名
-        if (window.locationInfo && window.locationInfo[index]) {
-            const locationData = window.locationInfo[index];
-            if (locationData && locationData.name && locationData.name !== '定位') {
-                // 根据类型构建不同的前缀
-                let prefix = '';
-                switch (locationData.type) {
-                    case 'functions':
-                        prefix = 'func';
-                        break;
-                    case 'methods':
-                        prefix = 'method';
-                        break;
-                    case 'classes':
-                        prefix = 'class';
-                        break;
-                    default:
-                        prefix = 'item';
+        let finalTitle = existingTitle;
+        let needsCodeUpdate = false;
+        
+        // 如果没有title属性，根据配置决定是否获取标题
+        if (!FrontmatterParser.hasTitle(currentCode)) {
+            console.log('未检测到title属性，当前模式:', this.titleManager.mode);
+            
+            if (this.titleManager.mode !== 'disabled') {
+                console.log('启动标题获取流程');
+                
+                // 使用标题管理器获取标题
+                finalTitle = await this.titleManager.handleTitleRequest(index);
+                
+                // 如果用户取消了输入，直接返回不进行导出
+                if (finalTitle === null && this.titleManager.mode !== 'disabled') {
+                    console.log('用户取消了标题输入，停止导出');
+                    return;
                 }
-                fileName = `${fileName}-${prefix}-${locationData.name}`;
+                
+                // 不管用户输入什么（包括空字符串），都要添加frontmatter
+                const titleToAdd = finalTitle || ''; // null转为空字符串
+                const updatedCode = FrontmatterParser.addOrUpdateTitle(currentCode, titleToAdd);
+                
+                // 更新代码显示
+                codeElement.textContent = updatedCode;
+                
+                // 标记需要更新后端代码
+                needsCodeUpdate = true;
+                finalTitle = titleToAdd; // 确保使用处理后的标题
+                
+                console.log('标题获取完成:', finalTitle, '需要更新代码:', needsCodeUpdate);
+            } else {
+                console.log('标题编辑器已禁用，跳过标题获取');
+                finalTitle = ''; // disabled模式下使用空标题
             }
         }
         
-        console.log('导出图片 - 基础文件名:', window.currentFileName, '图表索引:', index);
-        console.log('导出图片 - 位置信息:', window.locationInfo ? window.locationInfo[index] : 'undefined');
-        console.log('导出图片 - 最终文件名:', fileName);
+        // 生成文件名
+        const fileName = this.titleManager.generatePngFileName(index, finalTitle);
         
+        console.log('导出图片 - 图表索引:', index);
+        console.log('导出图片 - 检测到的标题:', existingTitle);
+        console.log('导出图片 - 最终标题:', finalTitle);
+        console.log('导出图片 - 生成的文件名:', fileName);
+        console.log('导出图片 - 是否需要更新代码:', needsCodeUpdate);
+        
+        // 序列化SVG
+        const svgData = new XMLSerializer().serializeToString(svg);
+        
+        // 发送导出请求
         this.renderer.vscode.postMessage({
             type: 'exportImage',
             svg: svgData,
             index: index,
             fileName: fileName,
+            title: finalTitle,
+            needsCodeUpdate: needsCodeUpdate,
+            updatedCode: needsCodeUpdate ? codeElement.textContent : null,
             isDarkTheme: this.renderer.themeManager.isDarkTheme
         });
     }
@@ -1838,6 +1868,452 @@ function zoomOut() {
 
 
 
+
+/**
+ * Frontmatter 解析器
+ * 解析 mermaid 代码中的 YAML frontmatter
+ */
+class FrontmatterParser {
+    /**
+     * 解析 frontmatter
+     * @param {string} code - mermaid 代码
+     * @returns {Object} 解析结果 {frontmatter: Object, content: string, hasFrontmatter: boolean}
+     */
+    static parse(code) {
+        const trimmedCode = code.trim();
+        
+        // 检查是否以 --- 开头
+        if (!trimmedCode.startsWith('---')) {
+            return {
+                frontmatter: {},
+                content: code,
+                hasFrontmatter: false
+            };
+        }
+        
+        // 查找结束的 ---
+        const lines = trimmedCode.split('\n');
+        let endIndex = -1;
+        
+        for (let i = 1; i < lines.length; i++) {
+            if (lines[i].trim() === '---') {
+                endIndex = i;
+                break;
+            }
+        }
+        
+        if (endIndex === -1) {
+            return {
+                frontmatter: {},
+                content: code,
+                hasFrontmatter: false
+            };
+        }
+        
+        // 提取 frontmatter 内容
+        const frontmatterLines = lines.slice(1, endIndex);
+        const contentLines = lines.slice(endIndex + 1);
+        
+        // 简单的 YAML 解析（仅支持 key: value 格式）
+        const frontmatter = {};
+        frontmatterLines.forEach(line => {
+            const match = line.match(/^\s*([^:]+):\s*(.*)$/);
+            if (match) {
+                const key = match[1].trim();
+                const value = match[2].trim().replace(/^["']|["']$/g, ''); // 移除引号
+                frontmatter[key] = value;
+            }
+        });
+        
+        return {
+            frontmatter,
+            content: contentLines.join('\n').trim(),
+            hasFrontmatter: true
+        };
+    }
+    
+    /**
+     * 提取标题
+     * @param {string} code - mermaid 代码
+     * @returns {string|null} 标题，如果没有则返回 null
+     */
+    static extractTitle(code) {
+        const parsed = this.parse(code);
+        return parsed.frontmatter.title || null;
+    }
+    
+    /**
+     * 检查是否有标题
+     * @param {string} code - mermaid 代码
+     * @returns {boolean}
+     */
+    static hasTitle(code) {
+        return this.extractTitle(code) !== null;
+    }
+    
+    /**
+     * 生成带标题的 frontmatter
+     * @param {string} title - 标题
+     * @param {Object} existingFrontmatter - 现有的 frontmatter
+     * @returns {string} 生成的 frontmatter 字符串
+     */
+    static generateFrontmatter(title, existingFrontmatter = {}) {
+        const frontmatter = { ...existingFrontmatter, title };
+        const lines = ['---'];
+        
+        Object.entries(frontmatter).forEach(([key, value]) => {
+            lines.push(`${key}: ${value}`);
+        });
+        
+        lines.push('---');
+        return lines.join('\n');
+    }
+    
+    /**
+     * 添加或更新标题
+     * @param {string} code - 原始 mermaid 代码
+     * @param {string} title - 新标题
+     * @returns {string} 更新后的代码
+     */
+    static addOrUpdateTitle(code, title) {
+        const parsed = this.parse(code);
+        
+        if (parsed.hasFrontmatter) {
+            // 更新现有的 frontmatter
+            const newFrontmatter = this.generateFrontmatter(title, parsed.frontmatter);
+            return newFrontmatter + '\n' + parsed.content;
+        } else {
+            // 添加新的 frontmatter
+            const newFrontmatter = this.generateFrontmatter(title);
+            return newFrontmatter + '\n' + code;
+        }
+    }
+}
+
+/**
+ * 简单标题对话框
+ * 提供简单的弹框输入标题功能
+ */
+class SimpleTitleDialog {
+    constructor(titleManager) {
+        this.titleManager = titleManager;
+        this.isShowing = false;
+        this.currentIndex = -1;
+        this.currentCallback = null;
+    }
+    
+    /**
+     * 显示标题输入对话框
+     * @param {number} index - 图表索引
+     * @returns {Promise<string|null>} 用户输入的标题，取消则返回 null
+     */
+    showDialog(index) {
+        return new Promise((resolve) => {
+            if (this.isShowing) {
+                resolve(null);
+                return;
+            }
+            
+            this.isShowing = true;
+            this.currentIndex = index;
+            this.currentCallback = resolve;
+            
+            // 获取当前代码
+            const card = document.querySelector(`.mermaid-card[data-index="${index}"]`);
+            const codeElement = card?.querySelector('.mermaid-code');
+            const currentCode = codeElement?.textContent || '';
+            
+            // 检查是否已有标题
+            const existingTitle = FrontmatterParser.extractTitle(currentCode);
+            
+            // 创建对话框HTML
+            this.createDialog(existingTitle);
+        });
+    }
+    
+    /**
+     * 创建对话框DOM
+     * @param {string|null} existingTitle - 现有标题
+     */
+    createDialog(existingTitle) {
+        // 创建遮罩层
+        const overlay = document.createElement('div');
+        overlay.className = 'title-dialog-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        `;
+        
+        // 创建对话框
+        const dialog = document.createElement('div');
+        dialog.className = 'title-dialog';
+        dialog.style.cssText = `
+            background: var(--vscode-editor-background);
+            border: 1px solid var(--vscode-widget-border);
+            border-radius: 6px;
+            padding: 20px;
+            min-width: 400px;
+            max-width: 500px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        `;
+        
+        dialog.innerHTML = `
+            <div class="dialog-header" style="margin-bottom: 16px;">
+                <h3 style="margin: 0; color: var(--vscode-foreground);">设置PNG文件标题</h3>
+                <p style="margin: 8px 0 0 0; color: var(--vscode-descriptionForeground); font-size: 12px;">
+                    为生成的PNG文件添加标题，将会添加到文件名中
+                </p>
+            </div>
+            <div class="dialog-content" style="margin-bottom: 20px;">
+                <input type="text" 
+                       id="titleInput" 
+                       placeholder="请输入标题..." 
+                       value="${existingTitle || ''}"
+                       style="
+                           width: 100%;
+                           padding: 8px 12px;
+                           border: 1px solid var(--vscode-input-border);
+                           background: var(--vscode-input-background);
+                           color: var(--vscode-input-foreground);
+                           border-radius: 3px;
+                           font-family: var(--vscode-font-family);
+                           font-size: 13px;
+                           box-sizing: border-box;
+                       ">
+            </div>
+            <div class="dialog-actions" style="display: flex; justify-content: flex-end; gap: 8px;">
+                <button id="cancelBtn" style="
+                    padding: 6px 14px;
+                    border: 1px solid var(--vscode-button-border);
+                    background: var(--vscode-button-secondaryBackground);
+                    color: var(--vscode-button-secondaryForeground);
+                    border-radius: 3px;
+                    cursor: pointer;
+                    font-size: 12px;
+                ">取消</button>
+                <button id="confirmBtn" style="
+                    padding: 6px 14px;
+                    border: 1px solid var(--vscode-button-border);
+                    background: var(--vscode-button-background);
+                    color: var(--vscode-button-foreground);
+                    border-radius: 3px;
+                    cursor: pointer;
+                    font-size: 12px;
+                ">确认</button>
+            </div>
+        `;
+        
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+        
+        // 绑定事件
+        this.bindDialogEvents(overlay);
+        
+        // 聚焦输入框
+        setTimeout(() => {
+            const input = dialog.querySelector('#titleInput');
+            input.focus();
+            if (existingTitle) {
+                input.select();
+            }
+        }, 100);
+    }
+    
+    /**
+     * 绑定对话框事件
+     * @param {HTMLElement} overlay - 遮罩层元素
+     */
+    bindDialogEvents(overlay) {
+        const input = overlay.querySelector('#titleInput');
+        const confirmBtn = overlay.querySelector('#confirmBtn');
+        const cancelBtn = overlay.querySelector('#cancelBtn');
+        
+        // 确认按钮
+        confirmBtn.addEventListener('click', () => {
+            const title = input.value.trim();
+            this.closeDialog(overlay, title);
+        });
+        
+        // 取消按钮
+        cancelBtn.addEventListener('click', () => {
+            this.closeDialog(overlay, null);
+        });
+        
+        // ESC键取消
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                this.closeDialog(overlay, null);
+            } else if (e.key === 'Enter') {
+                const title = input.value.trim();
+                this.closeDialog(overlay, title);
+            }
+        };
+        
+        document.addEventListener('keydown', handleKeyDown);
+        
+        // 点击遮罩层取消
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                this.closeDialog(overlay, null);
+            }
+        });
+        
+        // 保存事件处理器引用以便清理
+        overlay._keydownHandler = handleKeyDown;
+    }
+    
+    /**
+     * 关闭对话框
+     * @param {HTMLElement} overlay - 遮罩层元素
+     * @param {string|null} title - 用户输入的标题
+     */
+    closeDialog(overlay, title) {
+        // 清理事件监听器
+        if (overlay._keydownHandler) {
+            document.removeEventListener('keydown', overlay._keydownHandler);
+        }
+        
+        // 移除DOM元素
+        overlay.remove();
+        
+        // 重置状态
+        this.isShowing = false;
+        
+        // 调用回调
+        if (this.currentCallback) {
+            this.currentCallback(title);
+            this.currentCallback = null;
+        }
+        
+        this.currentIndex = -1;
+    }
+}
+
+
+/**
+ * 标题管理器
+ * 统一处理标题相关功能
+ */
+class TitleManager {
+    constructor(uiController) {
+        this.uiController = uiController;
+        this.mode = 'disabled'; // disabled, dialog
+        this.simpleDialog = null;
+        this.vscode = null;
+    }
+    
+    /**
+     * 初始化标题管理器
+     */
+    initialize() {
+        this.vscode = this.uiController.renderer.vscode;
+        this.loadConfiguration();
+        
+        // 根据模式初始化对应的编辑器
+        if (this.mode === 'dialog') {
+            this.simpleDialog = new SimpleTitleDialog(this);
+        }
+        
+        console.log(`标题管理器初始化完成，模式: ${this.mode}`);
+    }
+    
+    /**
+     * 加载配置
+     */
+    loadConfiguration() {
+        // 从 vscode 配置中读取
+        this.mode = window.titleEditorConfig?.mode || 'disabled';
+        console.log('加载标题编辑器配置:', this.mode);
+    }
+    
+    /**
+     * 处理标题请求
+     * @param {number} index - 图表索引
+     * @returns {Promise<string|null>} 标题
+     */
+    async handleTitleRequest(index) {
+        console.log('处理标题请求, 模式:', this.mode, '图表索引:', index);
+        
+        if (this.mode === 'disabled') {
+            console.log('标题编辑器已禁用，返回null');
+            return null;
+        }
+        
+        if (this.mode === 'dialog' && this.simpleDialog) {
+            console.log('使用简单对话框');
+            return await this.simpleDialog.showDialog(index);
+        }
+        
+        console.warn('无法找到合适的标题编辑器');
+        return null;
+    }
+    
+    /**
+     * 生成PNG文件名
+     * @param {number} index - 图表索引
+     * @param {string} title - 用户输入的标题
+     * @returns {string} 生成的文件名
+     */
+    generatePngFileName(index, title = '') {
+        let fileName = window.currentFileName || 'mermaid-chart';
+        
+        // 添加函数/类/方法名
+        if (window.locationInfo && window.locationInfo[index]) {
+            const locationData = window.locationInfo[index];
+            if (locationData && locationData.name && locationData.name !== '定位') {
+                const prefix = this.getLocationPrefix(locationData.type);
+                fileName = `${fileName}-${prefix}-${locationData.name}`;
+            }
+        }
+        
+        // 添加标题
+        if (title && title.trim()) {
+            const cleanTitle = this.sanitizeFileName(title.trim());
+            fileName = `${fileName}-${cleanTitle}`;
+        }
+        
+        return fileName;
+    }
+    
+    /**
+     * 获取位置前缀
+     * @param {string} type - 类型
+     * @returns {string} 前缀
+     */
+    getLocationPrefix(type) {
+        switch (type) {
+            case 'functions':
+                return 'func';
+            case 'methods':
+                return 'method';
+            case 'classes':
+                return 'class';
+            default:
+                return 'item';
+        }
+    }
+    
+    /**
+     * 清理文件名中的特殊字符
+     * @param {string} fileName - 原文件名
+     * @returns {string} 清理后的文件名
+     */
+    sanitizeFileName(fileName) {
+        return fileName
+            .replace(/[<>:"/\\|?*\x00-\x1f]/g, '') // 移除非法字符
+            .replace(/\s+/g, '-') // 空格替换为连字符
+            .replace(/-+/g, '-') // 多个连字符合并为一个
+            .replace(/^-|-$/g, ''); // 移除首尾连字符
+    }
+}
 
 // 页面加载完成后初始化
 if (document.readyState === 'loading') {

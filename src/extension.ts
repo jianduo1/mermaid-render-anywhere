@@ -344,7 +344,7 @@ class MermaidCodeLensProvider implements vscode.CodeLensProvider {
 
       if (showSaveAsPng) {
         const saveAsPngCodeLens = new vscode.CodeLens(range, {
-          title: "💾 保存PNG",
+          title: "🖼️ PNG预览",
           command: "mermaid-render-anywhere.saveAsPng",
           arguments: [mermaidCode, location.lineNumber, contextInfo, document.fileName],
         });
@@ -520,14 +520,14 @@ class PopupMermaidPreviewProvider {
     });
 
     // 处理来自webview的消息
-    this._panel.webview.onDidReceiveMessage((data) => {
+    this._panel.webview.onDidReceiveMessage(async (data) => {
       switch (data.type) {
         case "copyCode":
           vscode.env.clipboard.writeText(data.code);
           vscode.window.showInformationMessage("代码已复制到剪贴板");
           break;
         case "exportImage":
-          this._exportImage(data.svg, data.index, data.isDarkTheme, data.fileName);
+          await this._exportImageWithTitleSupport(data);
           break;
         case "jumpToFunction":
           this._jumpToFunction(data.lineNumber, data.fileName);
@@ -768,6 +768,170 @@ class PopupMermaidPreviewProvider {
     }
   }
 
+  /**
+   * 新版本的导出图片方法，支持标题管理和文件存在检查
+   * @param data 包含SVG数据、标题、文件名等信息的对象
+   */
+  private async _exportImageWithTitleSupport(data: any) {
+    try {
+      // 如果需要更新代码，先更新文档
+      if (data.needsCodeUpdate && data.updatedCode) {
+        await this._updateMermaidCodeInDocument(data.index, data.updatedCode);
+      }
+
+      // 获取当前工作目录
+      const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+      if (!workspaceFolder) {
+        vscode.window.showErrorMessage('请先打开一个工作区');
+        return;
+      }
+
+      const defaultPath = workspaceFolder.uri.fsPath;
+      
+      // 构建PNG文件路径
+      const pngFileName = `${data.fileName}.png`;
+      const pngPath = path.join(defaultPath, pngFileName);
+      
+      console.log('检查PNG文件是否存在:', pngPath);
+      
+      // 检查PNG文件是否已存在
+      if (fs.existsSync(pngPath)) {
+        console.log('PNG文件已存在，直接打开');
+        
+        // 文件存在，直接在第二栏打开
+        const pngUri = vscode.Uri.file(pngPath);
+        await vscode.commands.executeCommand('vscode.open', pngUri, vscode.ViewColumn.Two);
+        vscode.window.showInformationMessage(`PNG文件已打开: ${path.basename(pngPath)}`);
+        return;
+      }
+
+      console.log('PNG文件不存在，开始生成');
+
+      // 文件不存在，需要生成
+      // 先保存SVG文件（临时）
+      const svgPath = path.join(defaultPath, `${data.fileName}.svg`);
+      fs.writeFileSync(svgPath, data.svg);
+      
+      try {
+        // 尝试使用mermaid-cli生成PNG
+        vscode.window.showInformationMessage('正在生成PNG图片...');
+        
+        const execAsync = promisify(exec);
+        const theme = data.isDarkTheme ? 'dark' : 'base';
+        await execAsync(`mmdc -i "${svgPath}" -o "${pngPath}" -t ${theme} -s 2`);
+        
+        // 删除临时SVG文件
+        fs.unlinkSync(svgPath);
+        
+        // 在第二栏打开PNG文件
+        const pngUri = vscode.Uri.file(pngPath);
+        await vscode.commands.executeCommand('vscode.open', pngUri, vscode.ViewColumn.Two);
+        
+        vscode.window.showInformationMessage(`PNG图片已生成并打开: ${path.basename(pngPath)}`);
+        
+      } catch (mmdcError) {
+        // mermaid-cli失败，保留SVG文件并提示用户
+        console.error('mermaid-cli失败:', mmdcError);
+        
+        // 在第二栏打开SVG文件
+        const svgUri = vscode.Uri.file(svgPath);
+        await vscode.commands.executeCommand('vscode.open', svgUri, vscode.ViewColumn.Two);
+        
+        vscode.window.showWarningMessage(
+          `PNG生成失败，已保存为SVG: ${path.basename(svgPath)}。` +
+          `请安装 mermaid-cli (npm install -g @mermaid-js/mermaid-cli) 以支持PNG导出。`
+        );
+      }
+      
+    } catch (error) {
+      console.error('导出失败:', error);
+      vscode.window.showErrorMessage(`导出失败: ${error}`);
+    }
+  }
+
+  /**
+   * 更新文档中的mermaid代码
+   * @param index 图表索引
+   * @param updatedCode 更新后的代码
+   */
+  private async _updateMermaidCodeInDocument(index: number, updatedCode: string) {
+    const activeEditor = vscode.window.activeTextEditor;
+    if (!activeEditor) {
+      console.warn('没有活动的编辑器，无法更新代码');
+      return;
+    }
+
+    const document = activeEditor.document;
+    const text = document.getText();
+    
+    // 提取所有mermaid代码块
+    const { mermaidBlocks } = extractAllMermaidFromFile(document);
+    
+    if (index >= mermaidBlocks.length) {
+      console.warn('图表索引超出范围，无法更新代码');
+      return;
+    }
+
+    // 找到对应的代码块在文档中的位置
+    const lines = text.split('\n');
+    let mermaidBlockIndex = 0;
+    let startLine = -1;
+    let endLine = -1;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      // 检查是否是mermaid代码块的开始
+      if (line.match(/```\s*mermaid/) || 
+          line.match(/\/\*\*?\s*```\s*mermaid/) ||
+          line.match(/\/\/\s*```\s*mermaid/) ||
+          line.match(/#\s*```\s*mermaid/)) {
+        
+        if (mermaidBlockIndex === index) {
+          startLine = i;
+          
+          // 找到代码块的结束
+          for (let j = i + 1; j < lines.length; j++) {
+            if (lines[j].trim().includes('```')) {
+              endLine = j;
+              break;
+            }
+          }
+          break;
+        }
+        mermaidBlockIndex++;
+      }
+    }
+
+    if (startLine === -1 || endLine === -1) {
+      console.warn('无法找到对应的mermaid代码块');
+      return;
+    }
+
+    // 构建新的代码块内容
+    const beforeBlock = lines.slice(0, startLine + 1); // 包含开始的```mermaid行
+    const afterBlock = lines.slice(endLine); // 包含结束的```行
+    const newCodeLines = updatedCode.split('\n');
+    
+    const newContent = [
+      ...beforeBlock,
+      ...newCodeLines,
+      ...afterBlock
+    ].join('\n');
+
+    // 应用编辑
+    const edit = new vscode.WorkspaceEdit();
+    const fullRange = new vscode.Range(
+      new vscode.Position(0, 0),
+      new vscode.Position(lines.length - 1, lines[lines.length - 1].length)
+    );
+    
+    edit.replace(document.uri, fullRange, newContent);
+    await vscode.workspace.applyEdit(edit);
+    
+    console.log('mermaid代码已更新');
+  }
+
   private async _showFullscreenImage(svg: string, title: string, index: number) {
     try {
       // 如果已有全屏面板，先关闭
@@ -858,14 +1022,22 @@ class PopupMermaidPreviewProvider {
     // functionName 实际上就是从 path.basename(filePath, path.extname(filePath)) 得来的
     const fileName = functionName || "mermaid-chart";
 
-    // 先注入文件名和位置信息到HTML中，供JavaScript使用（必须在URI替换之前）
+    // 获取配置信息
+    const config = vscode.workspace.getConfiguration('mermaidRenderAnywhere');
+    const titleEditorMode = config.get<string>('titleEditor.mode', 'disabled');
+
+    // 先注入文件名、位置信息和配置到HTML中，供JavaScript使用（必须在URI替换之前）
     console.log("注入到webview的fileName:", fileName);
     console.log("注入到webview的locationInfo:", locationInfo);
+    console.log("注入到webview的titleEditorMode:", titleEditorMode);
     htmlTemplate = htmlTemplate.replace(
       '<script src="./webview.js"></script>',
       `<script>
         window.currentFileName = '${fileName}';
         window.locationInfo = ${JSON.stringify(locationInfo || [])};
+        window.titleEditorConfig = {
+          mode: '${titleEditorMode}'
+        };
       </script>\n    <script src="./webview.js"></script>`
     );
 
@@ -961,7 +1133,7 @@ class PopupMermaidPreviewProvider {
                           <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                       </svg>
                   </button>
-                  <button class="action-btn" onclick="event.stopPropagation(); exportImage(${index})" title="导出图片">
+                  <button class="action-btn" onclick="event.stopPropagation(); exportImage(${index})" title="预览PNG">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                           <polyline points="7,10 12,15 17,10"/>
@@ -1136,11 +1308,197 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.window.showInformationMessage("Hello World from Render Mermaid in Function Doc!");
   });
 
-  // 注册保存PNG命令
+  // 注册预览PNG命令 - 支持标题检测和管理
   let saveAsPngCommand = vscode.commands.registerCommand("mermaid-render-anywhere.saveAsPng", async (mermaidCode: string, lineNumber: number, contextInfo: {name: string; type: string}, filePath?: string) => {
     try {
       // 清理Mermaid代码
       const cleanedCode = cleanCommentSymbols(mermaidCode);
+      
+      // 获取配置
+      const config = vscode.workspace.getConfiguration('mermaidRenderAnywhere');
+      const titleEditorMode = config.get<string>('titleEditor.mode', 'disabled');
+      const customPngPath = config.get<string>('pngOutputPath', '');
+      
+      console.log('CodeLens预览PNG - 当前模式:', titleEditorMode);
+      console.log('CodeLens预览PNG - 自定义路径:', customPngPath);
+      
+      // 获取输出目录
+      let outputDir: string;
+      
+      if (customPngPath && customPngPath.trim()) {
+        // 用户配置了自定义路径
+        const trimmedPath = customPngPath.trim();
+        
+        if (path.isAbsolute(trimmedPath)) {
+          // 绝对路径
+          outputDir = trimmedPath;
+          console.log('使用绝对路径:', outputDir);
+        } else {
+          // 相对于工作区根目录的路径
+          const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+          if (workspaceRoot) {
+            outputDir = path.join(workspaceRoot, trimmedPath);
+            console.log('使用相对路径:', outputDir);
+          } else {
+            // 没有工作区，回退到当前文件目录
+            outputDir = filePath ? path.dirname(filePath) : 
+                       (vscode.window.activeTextEditor ? path.dirname(vscode.window.activeTextEditor.document.fileName) : os.tmpdir());
+            console.log('没有工作区，回退到当前文件目录:', outputDir);
+          }
+        }
+        
+        // 确保目录存在
+        try {
+          if (!fs.existsSync(outputDir)) {
+            fs.mkdirSync(outputDir, { recursive: true });
+            console.log('创建输出目录:', outputDir);
+          }
+        } catch (error) {
+          console.error('创建输出目录失败:', error);
+          vscode.window.showErrorMessage(`无法创建输出目录: ${outputDir}`);
+          return;
+        }
+      } else {
+        // 使用默认逻辑：当前文件所在目录
+        if (filePath) {
+          outputDir = path.dirname(filePath);
+        } else if (vscode.window.activeTextEditor) {
+          outputDir = path.dirname(vscode.window.activeTextEditor.document.fileName);
+        } else {
+          outputDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || os.tmpdir();
+        }
+        console.log('使用默认路径（当前文件目录）:', outputDir);
+      }
+      
+      let currentFileName = 'untitled';
+      if (filePath) {
+        currentFileName = path.basename(filePath, path.extname(filePath));
+      } else if (vscode.window.activeTextEditor) {
+        currentFileName = path.basename(vscode.window.activeTextEditor.document.fileName, path.extname(vscode.window.activeTextEditor.document.fileName));
+      }
+      
+      // 第一步：检查是否有title属性
+      const hasTitle = _hasTitle(cleanedCode);
+      let finalCode = cleanedCode;
+      let titleForFileName = '';
+      
+      console.log('CodeLens预览PNG - 是否有title:', hasTitle);
+      
+      if (hasTitle) {
+        // 提取现有标题
+        titleForFileName = _extractTitle(cleanedCode) || '';
+        console.log('检测到现有标题:', titleForFileName);
+      }
+      
+      // 第二步：生成预期的文件名和路径（基于当前标题）
+      let baseName = currentFileName;
+      
+      // 添加函数/类/方法名
+      if (contextInfo.name && contextInfo.name !== 'unknown' && contextInfo.name !== '定位') {
+        baseName = `${baseName}-${contextInfo.name}`;
+      }
+      
+      // 添加标题（如果有的话）
+      if (titleForFileName && titleForFileName.trim()) {
+        const cleanTitle = _sanitizeFileName(titleForFileName.trim());
+        baseName = `${baseName}-${cleanTitle}`;
+      }
+      
+      const expectedPngPath = path.join(outputDir, `${baseName}.png`);
+      console.log('预期的PNG文件路径:', expectedPngPath);
+      
+      // 第三步：检查标题和PNG文件存在性，决定是否需要对话交互
+      const pngExists = fs.existsSync(expectedPngPath);
+      let needDialog = false;
+      let userTitle: string | undefined = '';
+      let shouldUpdateCode = false;
+      
+      console.log('PNG文件存在:', pngExists, '标题存在:', hasTitle);
+      
+      if (titleEditorMode === 'disabled') {
+        // 标题编辑器已禁用
+        console.log('标题编辑器已禁用');
+        if (pngExists) {
+          // PNG存在，直接打开
+          console.log('PNG文件已存在，直接打开');
+          const pngUri = vscode.Uri.file(expectedPngPath);
+          await vscode.commands.executeCommand('vscode.open', pngUri, vscode.ViewColumn.Two);
+          vscode.window.showInformationMessage(`PNG文件已打开: ${path.basename(expectedPngPath)}`);
+          return;
+        }
+        // PNG不存在，使用现有标题继续生成
+        titleForFileName = titleForFileName || '';
+      } else if (titleEditorMode === 'dialog') {
+        // 对话模式：只有当标题或PNG文件其中一个不存在时才弹框
+        needDialog = !hasTitle || !pngExists;
+        
+        if (!needDialog && pngExists) {
+          // 标题和PNG都存在，直接打开PNG
+          console.log('标题和PNG文件都存在，直接打开');
+          const pngUri = vscode.Uri.file(expectedPngPath);
+          await vscode.commands.executeCommand('vscode.open', pngUri, vscode.ViewColumn.Two);
+          vscode.window.showInformationMessage(`PNG文件已打开: ${path.basename(expectedPngPath)}`);
+          return;
+        }
+        
+        if (needDialog) {
+          // 需要对话交互获取标题
+          console.log('需要对话交互，原因:', !hasTitle ? '没有标题' : '没有PNG文件');
+          userTitle = await vscode.window.showInputBox({
+            prompt: '请输入PNG文件标题（可为空）',
+            placeHolder: '标题将添加到文件名中...',
+            value: titleForFileName // 现有标题作为默认值
+          });
+          
+          // 用户取消了输入
+          if (userTitle === undefined) {
+            console.log('用户取消了标题输入');
+            return;
+          }
+          
+          // 检查是否需要更新代码（标题有变化或原来没有标题）
+          shouldUpdateCode = !hasTitle || (userTitle !== titleForFileName);
+          titleForFileName = userTitle || '';
+        }
+      }
+      
+      // 第四步：更新代码（如果需要）
+      if (shouldUpdateCode) {
+        finalCode = _addTitleToCode(cleanedCode, titleForFileName);
+        console.log('需要更新代码，新标题:', titleForFileName);
+        
+        // 立即更新文档中的代码
+        await _updateCodeInDocument(mermaidCode, finalCode, lineNumber);
+        console.log('代码已更新');
+      }
+      
+      // 第五步：重新计算最终PNG文件路径（基于最终标题）
+      let finalBaseName = currentFileName;
+      
+      // 添加函数/类/方法名
+      if (contextInfo.name && contextInfo.name !== 'unknown' && contextInfo.name !== '定位') {
+        finalBaseName = `${finalBaseName}-${contextInfo.name}`;
+      }
+      
+      // 添加最终标题
+      if (titleForFileName && titleForFileName.trim()) {
+        const cleanTitle = _sanitizeFileName(titleForFileName.trim());
+        finalBaseName = `${finalBaseName}-${cleanTitle}`;
+      }
+      
+      const finalPngPath = path.join(outputDir, `${finalBaseName}.png`);
+      console.log('最终PNG文件路径:', finalPngPath);
+      
+      // 第六步：检查最终的PNG文件是否存在
+      if (fs.existsSync(finalPngPath)) {
+        console.log('PNG文件已存在，直接打开');
+        const pngUri = vscode.Uri.file(finalPngPath);
+        await vscode.commands.executeCommand('vscode.open', pngUri, vscode.ViewColumn.Two);
+        vscode.window.showInformationMessage(`PNG文件已打开: ${path.basename(finalPngPath)}`);
+        return;
+      }
+      
+      // 第六步：如果PNG不存在，需要生成
       
       // 检查是否安装了mermaid-cli
       const execAsync = promisify(exec);
@@ -1160,65 +1518,280 @@ export function activate(context: vscode.ExtensionContext) {
         return;
       }
       
-      // 获取当前文件的目录
-      let outputDir: string;
-      if (filePath) {
-        outputDir = path.dirname(filePath);
-      } else if (vscode.window.activeTextEditor) {
-        outputDir = path.dirname(vscode.window.activeTextEditor.document.fileName);
-      } else {
-        outputDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || os.tmpdir();
-      }
-      
-      // 生成文件名
-      let currentFileName = 'untitled';
-      if (filePath) {
-        currentFileName = path.basename(filePath, path.extname(filePath));
-      } else if (vscode.window.activeTextEditor) {
-        currentFileName = path.basename(vscode.window.activeTextEditor.document.fileName, path.extname(vscode.window.activeTextEditor.document.fileName));
-      }
-      
-      // 获取当前mermaid块在文件中的索引
-      const document = vscode.window.activeTextEditor?.document;
-      let blockIndex = 1;
-      if (document) {
-        const {mermaidBlocks} = extractAllMermaidFromFile(document);
-        blockIndex = mermaidBlocks.findIndex(block => cleanCommentSymbols(block) === cleanedCode) + 1;
-        if (blockIndex <= 0) blockIndex = 1;
-      }
-      
-      // 生成文件名：文件名-索引-函数名 或 文件名-索引
-      let baseName: string;
-      if (contextInfo.name && contextInfo.name !== 'unknown' && contextInfo.name !== '定位') {
-        baseName = `${currentFileName}-${blockIndex}-${contextInfo.name}`;
-      } else {
-        baseName = `${currentFileName}-${blockIndex}`;
-      }
-      
-      const mmdPath = path.join(outputDir, `${baseName}.mmd`);
-      const pngPath = path.join(outputDir, `${baseName}.png`);
-      
       // 写入临时mermaid文件
-      fs.writeFileSync(mmdPath, cleanedCode);
+      const mmdPath = path.join(outputDir, `${finalBaseName}.mmd`);
+      fs.writeFileSync(mmdPath, finalCode);
       
       // 使用mermaid-cli生成PNG
       vscode.window.showInformationMessage('正在生成PNG图片...');
       
-      await execAsync(`mmdc -i "${mmdPath}" -o "${pngPath}" -b white -s 2`);
+      await execAsync(`mmdc -i "${mmdPath}" -o "${finalPngPath}" -b white -s 2`);
       
       // 删除临时mermaid文件
       fs.unlinkSync(mmdPath);
       
       // 在第二栏打开PNG文件
-      const pngUri = vscode.Uri.file(pngPath);
+      const pngUri = vscode.Uri.file(finalPngPath);
       await vscode.commands.executeCommand('vscode.open', pngUri, vscode.ViewColumn.Two);
       
-      vscode.window.showInformationMessage(`PNG图片已保存并打开: ${path.basename(pngPath)}`);
+      vscode.window.showInformationMessage(`PNG图片已生成并打开: ${path.basename(finalPngPath)}`);
       
     } catch (error) {
-      vscode.window.showErrorMessage(`保存PNG失败: ${error}`);
+      vscode.window.showErrorMessage(`预览PNG失败: ${error}`);
     }
   });
+
+  /**
+   * 检查代码是否包含title属性
+   */
+  function _hasTitle(code: string): boolean {
+    const trimmedCode = code.trim();
+    if (!trimmedCode.startsWith('---')) {
+      return false;
+    }
+    
+    const lines = trimmedCode.split('\n');
+    let inFrontmatter = false;
+    
+    for (const line of lines) {
+      if (line.trim() === '---') {
+        if (!inFrontmatter) {
+          inFrontmatter = true;
+          continue;
+        } else {
+          break;
+        }
+      }
+      
+      if (inFrontmatter && line.match(/^\s*title\s*:/)) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
+  /**
+   * 提取title属性值
+   */
+  function _extractTitle(code: string): string | null {
+    const trimmedCode = code.trim();
+    if (!trimmedCode.startsWith('---')) {
+      return null;
+    }
+    
+    const lines = trimmedCode.split('\n');
+    let inFrontmatter = false;
+    
+    for (const line of lines) {
+      if (line.trim() === '---') {
+        if (!inFrontmatter) {
+          inFrontmatter = true;
+          continue;
+        } else {
+          break;
+        }
+      }
+      
+      if (inFrontmatter) {
+        const match = line.match(/^\s*title\s*:\s*(.*)$/);
+        if (match) {
+          return match[1].trim().replace(/^["']|["']$/g, '');
+        }
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * 添加title到mermaid代码中
+   */
+  function _addTitleToCode(code: string, title: string): string {
+    const trimmedCode = code.trim();
+    
+    if (trimmedCode.startsWith('---')) {
+      // 已有frontmatter，添加title
+      const lines = trimmedCode.split('\n');
+      let endIndex = -1;
+      
+      for (let i = 1; i < lines.length; i++) {
+        if (lines[i].trim() === '---') {
+          endIndex = i;
+          break;
+        }
+      }
+      
+      if (endIndex > 0) {
+        // 在frontmatter中添加title
+        const frontmatterLines = lines.slice(1, endIndex);
+        const contentLines = lines.slice(endIndex);
+        
+        // 检查是否已有title行
+        let hasTitleLine = false;
+        for (let i = 0; i < frontmatterLines.length; i++) {
+          if (frontmatterLines[i].match(/^\s*title\s*:/)) {
+            frontmatterLines[i] = `title: ${title}`;
+            hasTitleLine = true;
+            break;
+          }
+        }
+        
+        if (!hasTitleLine) {
+          frontmatterLines.unshift(`title: ${title}`);
+        }
+        
+        return ['---', ...frontmatterLines, ...contentLines].join('\n');
+      }
+    }
+    
+    // 没有frontmatter，添加新的
+    return `---\ntitle: ${title}\n---\n${code}`;
+  }
+
+  /**
+   * 更新文档中的代码 - 支持注释中的mermaid代码
+   */
+  async function _updateCodeInDocument(originalCode: string, newCode: string, lineNumber: number) {
+    const activeEditor = vscode.window.activeTextEditor;
+    if (!activeEditor) {
+      return;
+    }
+
+    const document = activeEditor.document;
+    const text = document.getText();
+    
+    console.log('更新文档代码 - 原始代码长度:', originalCode.length);
+    console.log('更新文档代码 - 新代码长度:', newCode.length);
+    console.log('更新文档代码 - 行号:', lineNumber);
+    
+    // 方法1：尝试精确替换（处理注释中的mermaid代码）
+    let updatedText = text;
+    
+    // 清理原始代码中的注释符号，用于匹配
+    const cleanOriginal = cleanCommentSymbols(originalCode);
+    
+    // 首先尝试直接替换原始代码
+    if (text.includes(originalCode)) {
+      console.log('使用直接替换方式');
+      updatedText = text.replace(originalCode, newCode);
+    } else {
+      console.log('直接替换失败，尝试基于行号的精确替换');
+      
+      // 方法2：基于行号的精确替换
+      const lines = text.split('\n');
+      const mermaidBlocks = extractAllMermaidFromFile(document);
+      
+      // 找到对应的mermaid块
+      if (mermaidBlocks.locationInfo && mermaidBlocks.locationInfo.length > 0) {
+        // 找到匹配的mermaid块
+        for (let i = 0; i < mermaidBlocks.locationInfo.length; i++) {
+          const location = mermaidBlocks.locationInfo[i];
+          const blockCode = mermaidBlocks.mermaidBlocks[i];
+          
+          // 检查是否是我们要更新的块（通过代码内容匹配）
+          if (cleanCommentSymbols(blockCode) === cleanOriginal) {
+            console.log('找到匹配的mermaid块，位置:', location.mermaidLineNumber);
+            
+            // 找到mermaid代码块的开始和结束位置
+            let startLine = -1;
+            let endLine = -1;
+            let inMermaidBlock = false;
+            
+            for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+              const line = lines[lineIdx];
+              
+              if (line.includes('```mermaid') || line.match(/^\s*[\*\/]*\s*```mermaid/)) {
+                if (lineIdx >= location.mermaidLineNumber - 10 && lineIdx <= location.mermaidLineNumber + 10) {
+                  startLine = lineIdx + 1; // mermaid内容从下一行开始
+                  inMermaidBlock = true;
+                  continue;
+                }
+              }
+              
+              if (inMermaidBlock && (line.includes('```') || line.match(/^\s*[\*\/]*\s*```/))) {
+                endLine = lineIdx - 1; // mermaid内容到上一行结束
+                break;
+              }
+            }
+            
+            if (startLine >= 0 && endLine >= 0) {
+              console.log('找到mermaid代码块范围:', startLine, '-', endLine);
+              
+              // 构建新的代码内容
+              const newMermaidLines = newCode.split('\n');
+              
+              // 保持原有的注释格式
+              const firstMermaidLine = lines[startLine];
+              const commentPrefix = firstMermaidLine.match(/^(\s*[\*\/]*\s*)/)?.[1] || '';
+              
+              // 为新代码的每一行添加相同的注释前缀
+              const formattedNewLines = newMermaidLines.map(line => {
+                if (line.trim() === '') {
+                  return commentPrefix.trimEnd(); // 空行只保留基础前缀
+                }
+                return commentPrefix + line;
+              });
+              
+              // 替换对应的行
+              const newLines = [
+                ...lines.slice(0, startLine),
+                ...formattedNewLines,
+                ...lines.slice(endLine + 1)
+              ];
+              
+              updatedText = newLines.join('\n');
+              console.log('使用基于行号的精确替换完成');
+              break;
+            }
+          }
+        }
+      }
+    }
+    
+    // 应用更改
+    if (updatedText !== text) {
+      const edit = new vscode.WorkspaceEdit();
+      const fullRange = new vscode.Range(
+        new vscode.Position(0, 0),
+        new vscode.Position(document.lineCount - 1, document.lineAt(document.lineCount - 1).text.length)
+      );
+      
+      edit.replace(document.uri, fullRange, updatedText);
+      await vscode.workspace.applyEdit(edit);
+      
+      console.log('文档代码已更新');
+    } else {
+      console.log('代码内容无变化，跳过更新');
+    }
+  }
+
+  /**
+   * 获取位置前缀
+   */
+  // function _getLocationPrefix(type: string): string {
+  //   switch (type) {
+  //     case 'functions':
+  //       return 'func';
+  //     case 'methods':
+  //       return 'method';
+  //     case 'classes':
+  //       return 'class';
+  //     default:
+  //       return 'item';
+  //   }
+  // }
+
+  /**
+   * 清理文件名中的特殊字符
+   */
+  function _sanitizeFileName(fileName: string): string {
+    return fileName
+      .replace(/[<>:"/\\|?*\x00-\x1f]/g, '') // 移除非法字符
+      .replace(/\s+/g, '-') // 空格替换为连字符
+      .replace(/-+/g, '-') // 多个连字符合并为一个
+      .replace(/^-|-$/g, ''); // 移除首尾连字符
+  }
 
   // 注册CodeLens提供者 - 支持所有文件类型
   const codeLensDisposable = vscode.languages.registerCodeLensProvider("*", codeLensProvider);

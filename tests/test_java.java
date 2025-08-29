@@ -5,25 +5,28 @@ import java.util.ArrayList;
  * 用户管理系统
  * 
  * ```mermaid
+ * ---
+ * title: 用户管理
+ * ---
  * classDiagram
- *     class UserManager {
- *         -List~User~ users
- *         +addUser(User user): boolean
- *         +removeUser(int userId): boolean
- *         +findUser(int userId): User
- *         +getAllUsers(): List~User~
- *     }
- *     
- *     class User {
- *         -int id
- *         -String name
- *         -String email
- *         +getId(): int
- *         +getName(): String
- *         +getEmail(): String
- *     }
- *     
- *     UserManager --> User
+ * class UserManager {
+ * -List~User~ users
+ * +addUser(User user): boolean
+ * +removeUser(int userId): boolean
+ * +findUser(int userId): User
+ * +getAllUsers(): List~User~
+ * }
+ *
+ * class User {
+ * -int id
+ * -String name
+ * -String email
+ * +getId(): int
+ * +getName(): String
+ * +getEmail(): String
+ * }
+ *
+ * UserManager --> User
  * ```
  */
 public class UserManager {
@@ -37,23 +40,26 @@ public class UserManager {
      * 添加用户流程
      * 
      * ```mermaid
+     * ---
+     * title: 添加用户
+     * ---
      * sequenceDiagram
-     *     participant C as 客户端
-     *     participant UM as UserManager
-     *     participant V as 验证器
-     *     participant DB as 数据存储
-     *     
-     *     C->>UM: addUser(user)
-     *     UM->>V: validateUser(user)
-     *     alt 验证成功
-     *         V-->>UM: 验证通过
-     *         UM->>DB: saveUser(user)
-     *         DB-->>UM: 保存成功
-     *         UM-->>C: 返回true
-     *     else 验证失败
-     *         V-->>UM: 验证失败
-     *         UM-->>C: 返回false
-     *     end
+     * participant C as 客户端
+     * participant UM as UserManager
+     * participant V as 验证器
+     * participant DB as 数据存储
+     *
+     * C->>UM: addUser(user)
+     * UM->>V: validateUser(user)
+     * alt 验证成功
+     * V-->>UM: 验证通过
+     * UM->>DB: saveUser(user)
+     * DB-->>UM: 保存成功
+     * UM-->>C: 返回true
+     * else 验证失败
+     * V-->>UM: 验证失败
+     * UM-->>C: 返回false
+     * end
      * ```
      */
     public boolean addUser(User user) {

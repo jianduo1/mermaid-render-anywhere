@@ -1,6 +1,6 @@
 # Mermaid Render Anywhere
 
-[![Version](https://img.shields.io/badge/version-0.0.3-blue.svg)](https://github.com/jianduo1/mermaid-render-anywhere)
+[![Version](https://img.shields.io/badge/version-0.0.10-blue.svg)](https://github.com/jianduo1/mermaid-render-anywhere)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 ## 🤖 AI辅助的效率神器
@@ -24,7 +24,12 @@
 
 ## 🖼️ 效果展示
 
-![Demo](https://raw.githubusercontent.com/jianduo1/mermaid-render-anywhere/main/assets/render.png)
+![render](https://raw.githubusercontent.com/jianduo1/mermaid-render-anywhere/main/assets/render.png)
+
+**动态标题编辑 & 自定义输出路径**
+![title-config](https://raw.githubusercontent.com/jianduo1/mermaid-render-anywhere/main/assets/title-config.png)
+
+![title](https://raw.githubusercontent.com/jianduo1/mermaid-render-anywhere/main/assets/title.png)
 
 
 ## ✨ 功能特性
@@ -62,6 +67,8 @@
 - **美观界面**: 现代化的卡片式设计，支持明暗主题
 - **复制代码**: 一键复制Mermaid代码到剪贴板
 - **全屏预览**: 支持全屏大图预览模式
+- **🆕 智能标题编辑**: 生成PNG图片时，智能检测标题和文件存在性，按需进行对话交互
+- **🆕 自定义输出路径**: 支持配置PNG文件的输出位置，可使用绝对路径或相对路径
 
 ### 📊 图表支持
 - 流程图 (graph)
@@ -101,13 +108,52 @@
   - 📑 页签模式：在当前页签内全屏
 - **复制导出**: 复制代码或导出SVG图片
 
+### 🆕 智能标题编辑功能
+
+在生成Mermaid预览图片时，您可以通过两种模式自定义流程图标题：
+
+#### 📝 标题编辑模式
+
+| 模式 | 说明 | 使用场景 |
+|------|------|----------|
+| `disabled` | 关闭标题编辑，使用默认标题 | 快速预览，不需要自定义标题 |
+| `dialog` | 弹框输入标题 | 需要为图表添加描述性标题 |
+
+#### 🎯 使用方式
+
+1. **配置编辑模式**：在VSCode设置中将 `mermaidRenderAnywhere.titleEditor.mode` 设为 `dialog`
+2. **点击预览PNG按钮**：
+   - 如果标题和PNG文件都存在 → 直接打开现有图片
+   - 如果标题或PNG文件缺失 → 弹出对话框获取标题
+3. **自定义标题**：在对话框中输入标题（可为空）
+4. **应用效果**：自定义的标题会添加到代码中并显示在生成的图片文件名中
+
+### 🆕 自定义PNG输出路径
+
+您可以配置PNG文件的输出位置，支持灵活的路径配置：
+
+#### 📁 路径配置方式
+
+| 配置值 | 路径类型 | 示例 | 说明 |
+|--------|----------|------|------|
+| 空字符串 `""` | 默认 | 当前文件所在目录 | 使用原有逻辑，在当前文件目录生成 |
+| 相对路径 | 相对于工作区根目录 | `"assets/diagrams"` | 在工作区根目录下的指定文件夹 |
+| 绝对路径 | 系统绝对路径 | `"/Users/username/diagrams"` | 指定的绝对路径位置 |
+
+#### 🎯 智能路径处理
+
+- **自动创建目录**：如果指定的目录不存在，会自动创建
+- **路径验证**：检测绝对路径和相对路径，自动处理
+- **回退机制**：如果配置的路径无效，自动回退到当前文件目录
+
 
 
 ## ⌨️ 快捷键
 
 | 快捷键 | 功能 |
 |--------|------|
-| `Cmd+R` | 打开文件预览模式 |
+| `Cmd+R` | 页签预览模式 - 提取所有Mermaid图表 |
+| `Cmd+Shift+M` | 侧栏预览模式 - 在侧边栏显示Mermaid图表 |
 
 ## ⚙️ 配置选项
 
@@ -117,6 +163,8 @@
 |--------|------|--------|------|
 | `mermaidRenderAnywhere.displayButton.sidebarAndTab` | boolean | `true` | 控制侧栏预览和页签预览按钮显示 |
 | `mermaidRenderAnywhere.displayButton.saveAsPng` | boolean | `true` | 控制保存PNG按钮显示，保存为PNG并在第二栏打开 |
+| `mermaidRenderAnywhere.titleEditor.mode` | string | `disabled` | 🆕 标题编辑模式：`disabled`(关闭)、`dialog`(弹框输入) |
+| `mermaidRenderAnywhere.pngOutputPath` | string | `""` | 🆕 PNG文件输出路径（支持绝对路径或相对于工作区根目录的路径，为空时在当前文件所在目录生成） |
 
 ### 配置示例
 
@@ -125,13 +173,17 @@
 ```json
 {
   "mermaidRenderAnywhere.displayButton.sidebarAndTab": true,
-  "mermaidRenderAnywhere.displayButton.saveAsPng": true
+  "mermaidRenderAnywhere.displayButton.saveAsPng": true,
+  "mermaidRenderAnywhere.titleEditor.mode": "dialog",
+  "mermaidRenderAnywhere.pngOutputPath": "assets/diagrams"
 }
 ```
 
 > 💡 **提示**: 
 > - 如果你只想使用预览功能，可以将 `saveAsPng` 设为 `false` 来隐藏保存PNG按钮
 > - 保存PNG功能需要全局安装 `@mermaid-js/mermaid-cli`：`npm install -g @mermaid-js/mermaid-cli`
+> - 🆕 **智能标题编辑**：设置 `titleEditor.mode` 为 `dialog` 可在生成图片时通过对话框自定义标题
+> - 🆕 **自定义输出路径**：设置 `pngOutputPath` 可指定PNG文件的生成位置，支持绝对路径和相对路径
 
 ## 🤝 贡献
 
